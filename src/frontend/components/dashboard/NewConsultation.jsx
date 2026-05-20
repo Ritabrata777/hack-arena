@@ -8,12 +8,12 @@ import { Input } from '@/frontend/components/ui/input';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { Button } from '@/frontend/components/ui/button';
 import { useToast } from "@/frontend/hooks/use-toast";
-import { encryptData } from '@/backend/lib/crypto';
+import { encryptData, decryptData } from '@/backend/lib/crypto';
 import { logToBlockchain, createHash } from '@/frontend/lib/blockchain';
 import { generateEprescription } from '@/backend/ai/flows/generate-eprescription';
 import { checkForMedicationConflicts } from '@/backend/ai/flows/medication-conflict';
-import { Sparkles, Save, Loader2, PlusCircle, Trash2, AlertCircle, AlertTriangle, User, HeartHandshake } from 'lucide-react';
-import { addConsultation } from '@/backend/services/mongodb';
+import { Sparkles, Save, Loader2, PlusCircle, Trash2, AlertCircle, AlertTriangle, HeartHandshake, CalendarCheck } from 'lucide-react';
+import { addConsultation, updateAppointmentStatus } from '@/backend/services/mongodb';
 import { createCampaignOnChain } from '@/frontend/services/blockchain';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -92,11 +92,29 @@ const NewConsultation = ({ consultations, setConsultations, activeWallet, setAct
     const [isSaving, setIsSaving] = useState(false);
     const [conflicts, setConflicts] = useState([]);
     const [lastSavedConsultationId, setLastSavedConsultationId] = useState(null);
+    const [appointmentDraft, setAppointmentDraft] = useState(null);
     const { toast } = useToast();
 
     const doctorProfile = activeWallet ? doctorProfiles[activeWallet.toLowerCase()] : {};
     const currentPatientProfile = patientId ? patientProfiles[patientId.toLowerCase()] : null;
     const dependents = currentPatientProfile?.dependents || [];
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const rawDraft = window.localStorage.getItem('medichain:consultationDraft');
+        if (!rawDraft) return;
+
+        try {
+            const draft = JSON.parse(rawDraft);
+            if (draft?.patientId) {
+                setAppointmentDraft(draft);
+                setPatientId(draft.patientId);
+            }
+        } catch (error) {
+            console.error('Failed to load consultation draft:', error);
+            window.localStorage.removeItem('medichain:consultationDraft');
+        }
+    }, []);
 
     useEffect(() => {
         setSelectedDependent('self'); // Reset when patientId changes
@@ -308,10 +326,23 @@ const NewConsultation = ({ consultations, setConsultations, activeWallet, setAct
                 pdfDataUri,
                 pdfFileName: `e-prescription-${patientId.substring(0,6)}-${new Date().toISOString().split('T')[0]}.pdf`,
                 medications: medications.map(({id, ...rest}) => rest),
+                appointmentId: appointmentDraft?.id || null,
             };
 
             // 3. Save to the database
             await addConsultation(newConsultation);
+
+            if (appointmentDraft?.id) {
+                await updateAppointmentStatus(appointmentDraft.id, 'completed', {
+                    consultationId: newConsultationId,
+                    prescriptionFileName: newConsultation.pdfFileName,
+                    completedAt: new Date().toISOString(),
+                });
+                if (typeof window !== 'undefined') {
+                    window.localStorage.removeItem('medichain:consultationDraft');
+                }
+                setAppointmentDraft(null);
+            }
 
             toast({
                 title: "Prescription Saved",
@@ -358,15 +389,25 @@ const NewConsultation = ({ consultations, setConsultations, activeWallet, setAct
                         <CardDescription>Fill in patient and medication details. After saving, you can initiate a fundraiser if needed.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                        {appointmentDraft && (
+                            <Alert>
+                                <CalendarCheck className="h-4 w-4" />
+                                <AlertTitle>Appointment Consultation</AlertTitle>
+                                <AlertDescription>
+                                    Creating prescription for {appointmentDraft.patientName || appointmentDraft.patientId} on {new Date(appointmentDraft.appointmentTime).toLocaleString()}.
+                                    {appointmentDraft.notes ? ` Reason: ${appointmentDraft.notes}` : ''}
+                                </AlertDescription>
+                            </Alert>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <Label htmlFor="patientId">Patient Account Wallet</Label>
-                                <Input id="patientId" value={patientId} onChange={(e) => setPatientId(e.target.value)} placeholder="0x...PatientWalletAddress" required disabled={isSaving || lastSavedConsultationId} />
+                                <Input id="patientId" value={patientId} onChange={(e) => setPatientId(e.target.value)} placeholder="0x...PatientWalletAddress" required disabled={isSaving || lastSavedConsultationId || !!appointmentDraft} />
                             </div>
                              {dependents.length > 0 && (
                                 <div>
                                     <Label htmlFor="consultationFor">Consultation For</Label>
-                                    <Select value={selectedDependent} onValueChange={setSelectedDependent} disabled={isSaving || lastSavedConsultationId}>
+                                    <Select value={selectedDependent} onValueChange={setSelectedDependent} disabled={isSaving || lastSavedConsultationId || !!appointmentDraft}>
                                         <SelectTrigger id="consultationFor">
                                             <SelectValue placeholder="Select patient..." />
                                         </SelectTrigger>
@@ -480,4 +521,3 @@ const NewConsultation = ({ consultations, setConsultations, activeWallet, setAct
 };
 
 export default NewConsultation;
-

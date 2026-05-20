@@ -58,6 +58,26 @@ const ViewRequestDialog = ({ request, patient }) => (
                     ))}
                  </div>
             </div>
+            <div>
+                 <h4 className="font-semibold">Fund Usage Proof</h4>
+                 <div className="mt-2 space-y-2">
+                    {request.proofs?.length > 0 ? request.proofs.map((proof) => (
+                         <div key={proof.id} className="flex items-center justify-between bg-muted/50 p-2 rounded-md">
+                            <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{proof.title}</p>
+                                <p className="text-xs text-muted-foreground">{proof.amount} APT - {new Date(proof.uploadedAt).toLocaleString()}</p>
+                            </div>
+                            {proof.receipt?.uri && (
+                                <a href={proof.receipt.uri} download={proof.receipt.name || 'receipt'} target="_blank" rel="noopener noreferrer">
+                                    <Button variant="outline" size="sm"><Download className="mr-2"/>Receipt</Button>
+                                </a>
+                            )}
+                        </div>
+                    )) : (
+                        <p className="text-sm text-muted-foreground">No spending receipts uploaded yet.</p>
+                    )}
+                 </div>
+            </div>
         </div>
     </DialogContent>
 );

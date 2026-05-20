@@ -7,13 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/frontend/components/
 import { Input } from '@/frontend/components/ui/input';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import { Label } from '@/frontend/components/ui/label';
-import { createFundraiserRequest } from '@/backend/services/mongodb';
+import { addFundraiserProof, createFundraiserRequest } from '@/backend/services/mongodb';
 import { Loader2, PlusCircle, UploadCloud, FileText, Download, HeartHandshake, CheckCircle2, AlertTriangle, Clock, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/frontend/components/ui/select';
 import Image from 'next/image';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/frontend/components/ui/dialog";
 
 const RequestForm = ({ activeWallet, consultations, doctorProfiles, refreshData }) => {
     const [title, setTitle] = useState('');
@@ -177,7 +178,129 @@ const RequestForm = ({ activeWallet, consultations, doctorProfiles, refreshData 
     )
 }
 
-const StatusTracker = ({ requests, doctorProfiles }) => {
+const ProofDialog = ({ request, activeWallet, refreshData }) => {
+    const [title, setTitle] = useState('');
+    const [amount, setAmount] = useState('');
+    const [note, setNote] = useState('');
+    const [receiptFile, setReceiptFile] = useState(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const { toast } = useToast();
+    const proofs = request.proofs || [];
+
+    const receiptToDataUri = (file) => new Promise((resolve, reject) => {
+        if (!file) {
+            resolve(null);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    const handleUploadProof = async () => {
+        if (!title.trim() || !amount || Number(amount) <= 0 || !receiptFile) {
+            toast({ variant: 'destructive', title: 'Missing Proof Details', description: 'Add a title, amount, and receipt file.' });
+            return;
+        }
+        if (receiptFile.size > 5_000_000) {
+            toast({ variant: 'destructive', title: 'File Too Large', description: 'Receipt must be less than 5MB.' });
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const uri = await receiptToDataUri(receiptFile);
+            await addFundraiserProof({
+                requestId: request.id,
+                patientId: activeWallet,
+                title: title.trim(),
+                amount: Number(amount),
+                note: note.trim(),
+                receipt: {
+                    name: receiptFile.name,
+                    type: receiptFile.type,
+                    uri,
+                },
+            });
+            toast({ title: 'Proof Uploaded', description: 'Receipt has been added to the campaign spending trail.' });
+            setTitle('');
+            setAmount('');
+            setNote('');
+            setReceiptFile(null);
+            if (refreshData) refreshData();
+        } catch (error) {
+            console.error('Failed to upload proof:', error);
+            toast({ variant: 'destructive', title: 'Upload Failed', description: error.message || 'Could not upload proof.' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Fund Usage Proof</DialogTitle>
+                <DialogDescription>Upload receipts that show how donated funds were spent.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+                <div className="rounded-md border p-3 space-y-2">
+                    <h4 className="font-semibold">Uploaded Receipts</h4>
+                    {proofs.length > 0 ? (
+                        <div className="space-y-2">
+                            {proofs.map(proof => (
+                                <div key={proof.id} className="flex items-center justify-between gap-3 rounded-md bg-muted/50 p-2">
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-sm truncate">{proof.title}</p>
+                                        <p className="text-xs text-muted-foreground">{proof.amount} APT - {new Date(proof.uploadedAt).toLocaleString()}</p>
+                                        {proof.note && <p className="text-xs text-muted-foreground truncate">{proof.note}</p>}
+                                    </div>
+                                    {proof.receipt?.uri && (
+                                        <a href={proof.receipt.uri} download={proof.receipt.name || 'receipt'} target="_blank" rel="noopener noreferrer">
+                                            <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" />Receipt</Button>
+                                        </a>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">No receipts uploaded yet.</p>
+                    )}
+                </div>
+
+                {request.status === 'approved' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-md border p-3">
+                        <div className="space-y-2">
+                            <Label>Expense Title</Label>
+                            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Medicine purchase, lab bill..." />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Amount Spent (APT)</Label>
+                            <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="e.g., 12.5" />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label>Notes</Label>
+                            <Textarea value={note} onChange={e => setNote(e.target.value)} placeholder="What this payment covered." />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label>Receipt File</Label>
+                            <Input type="file" accept="image/*,.pdf" onChange={e => setReceiptFile(e.target.files?.[0] || null)} />
+                            {receiptFile && <p className="text-xs text-muted-foreground">{receiptFile.name}</p>}
+                        </div>
+                        <div className="md:col-span-2">
+                            <Button onClick={handleUploadProof} disabled={isSaving}>
+                                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
+                                Upload Proof
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </DialogContent>
+    );
+};
+
+const StatusTracker = ({ requests, doctorProfiles, activeWallet, refreshData }) => {
     if (!requests || requests.length === 0) {
         return (
             <div className="text-center py-20">
@@ -212,6 +335,7 @@ const StatusTracker = ({ requests, doctorProfiles }) => {
                         <TableHead>Title</TableHead>
                         <TableHead>Verifying Doctor</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Proofs</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -228,6 +352,17 @@ const StatusTracker = ({ requests, doctorProfiles }) => {
                                         {statusInfo.icon}
                                         {statusInfo.text}
                                     </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button variant="outline" size="sm">
+                                                <FileText className="mr-2 h-4 w-4" />
+                                                {(req.proofs || []).length} receipt(s)
+                                            </Button>
+                                        </DialogTrigger>
+                                        <ProofDialog request={req} activeWallet={activeWallet} refreshData={refreshData} />
+                                    </Dialog>
                                 </TableCell>
                             </TableRow>
                         );
@@ -261,7 +396,12 @@ const RequestFundraiser = ({ activeWallet, consultations, doctorProfiles, fundra
                         />
                     </TabsContent>
                     <TabsContent value="status-tracker" className="mt-4 h-[60vh]">
-                        <StatusTracker requests={fundraiserRequests} doctorProfiles={doctorProfiles} />
+                        <StatusTracker
+                            requests={fundraiserRequests}
+                            doctorProfiles={doctorProfiles}
+                            activeWallet={activeWallet}
+                            refreshData={refreshData}
+                        />
                     </TabsContent>
                 </Tabs>
             </CardContent>

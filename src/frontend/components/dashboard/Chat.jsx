@@ -68,6 +68,16 @@ const MessageInput = React.memo(({
 
 MessageInput.displayName = 'MessageInput';
 
+const normalizeWallet = (wallet) => (wallet || '').toLowerCase();
+const getOtherUserType = (userType) => userType === 'doctor' ? 'patient' : 'doctor';
+const getParticipantId = (role, wallet) => `${role}:${normalizeWallet(wallet)}`;
+const getParticipantRole = (participantId) => participantId?.includes(':')
+    ? participantId.split(':')[0]
+    : null;
+const getParticipantWallet = (participantId) => participantId?.includes(':')
+    ? participantId.substring(participantId.indexOf(':') + 1)
+    : normalizeWallet(participantId);
+
 const Chat = ({ activeWallet, userType, initialContact }) => {
     const [conversations, setConversations] = useState([]);
     const [contacts, setContacts] = useState({});
@@ -82,20 +92,37 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
     const [activeTab, setActiveTab] = useState('conversations');
     const messagesEndRef = useRef(null);
     const { toast } = useToast();
+    const normalizedWallet = normalizeWallet(activeWallet);
+    const currentParticipantId = activeWallet ? getParticipantId(userType, activeWallet) : '';
+    const otherUserType = getOtherUserType(userType);
+
+    const isCurrentParticipant = useCallback((participantId) => {
+        const normalizedParticipant = normalizeWallet(participantId);
+        return normalizedParticipant === currentParticipantId ||
+            (!normalizedParticipant.includes(':') && normalizedParticipant === normalizedWallet);
+    }, [currentParticipantId, normalizedWallet]);
+
+    const getOtherParticipantId = useCallback((participants = []) => {
+        return participants.find(participant => !isCurrentParticipant(participant));
+    }, [isCurrentParticipant]);
 
     // Helper function to get contact display info
     const getContactDisplayInfo = useCallback((contactId, contact, userType) => {
         let contactName;
+        const contactWallet = contact?.walletAddress || getParticipantWallet(contactId);
 
         // First priority: use the contact's actual name if available
         if (contact?.name) {
-            contactName = contact.name;
+            contactName = userType === 'patient' && !contact.name.toLowerCase().startsWith('dr.')
+                ? `Dr. ${contact.name}`
+                : contact.name;
         } else if (userType === 'patient') {
             // If patient is chatting, other participant is a doctor
             // Try to find doctor name from contacts with case-insensitive matching
             let foundDoctorName = null;
             if (contacts && contactId) {
                 const lowerCaseContactId = contactId.toLowerCase();
+                const lowerCaseContactWallet = contactWallet.toLowerCase();
 
                 // Try exact match first
                 if (contacts[contactId]?.name) {
@@ -104,7 +131,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
                 // Then try case-insensitive match
                 else {
                     const foundContactKey = Object.keys(contacts).find(key =>
-                        key.toLowerCase() === lowerCaseContactId
+                        key.toLowerCase() === lowerCaseContactId ||
+                        contacts[key]?.walletAddress?.toLowerCase() === lowerCaseContactWallet
                     );
 
                     if (foundContactKey && contacts[foundContactKey]?.name) {
@@ -114,9 +142,11 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             }
 
             if (foundDoctorName) {
-                contactName = `Dr. ${foundDoctorName}`;
+                contactName = foundDoctorName.toLowerCase().startsWith('dr.')
+                    ? foundDoctorName
+                    : `Dr. ${foundDoctorName}`;
             } else {
-                contactName = `Dr. ${contactId?.substring(0, 6)}...`;
+                contactName = `Dr. ${contactWallet?.substring(0, 6)}...`;
             }
         } else if (userType === 'doctor') {
             // If doctor is chatting, other participant is a patient
@@ -124,6 +154,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             let foundPatientName = null;
             if (contacts && contactId) {
                 const lowerCaseContactId = contactId.toLowerCase();
+                const lowerCaseContactWallet = contactWallet.toLowerCase();
 
                 // Try exact match first
                 if (contacts[contactId]?.name) {
@@ -132,7 +163,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
                 // Then try case-insensitive match
                 else {
                     const foundContactKey = Object.keys(contacts).find(key =>
-                        key.toLowerCase() === lowerCaseContactId
+                        key.toLowerCase() === lowerCaseContactId ||
+                        contacts[key]?.walletAddress?.toLowerCase() === lowerCaseContactWallet
                     );
 
                     if (foundContactKey && contacts[foundContactKey].name) {
@@ -144,11 +176,11 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             if (foundPatientName) {
                 contactName = foundPatientName;
             } else {
-                contactName = `Patient ${contactId?.substring(0, 6)}...`;
+                contactName = `Patient ${contactWallet?.substring(0, 6)}...`;
             }
         } else {
             // Fallback for other user types
-            contactName = `${contactId?.substring(0, 6)}...`;
+            contactName = `${contactWallet?.substring(0, 6)}...`;
         }
 
         const profilePhoto = contact?.profilePhoto || contact?.documents?.photo;
@@ -165,7 +197,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
 
         Object.entries(contacts).forEach(([contactId, contact]) => {
             const contactName = contact.name || '';
-            const walletAddress = contactId;
+            const walletAddress = contact.walletAddress || getParticipantWallet(contactId);
 
             if (contactName.toLowerCase().includes(query) ||
                 walletAddress.toLowerCase().includes(query) ||
@@ -189,19 +221,21 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
         const query = searchQuery.toLowerCase();
         const suggestions = [];
 
-        Object.keys(contacts).forEach(contactId => {
-            if (contactId.toLowerCase().includes(query) &&
-                contactId.toLowerCase().startsWith('0x')) {
-                suggestions.push(contactId);
+        Object.entries(contacts).forEach(([contactId, contact]) => {
+            const walletAddress = contact.walletAddress || getParticipantWallet(contactId);
+            if (walletAddress.toLowerCase().includes(query) &&
+                walletAddress.toLowerCase().startsWith('0x')) {
+                suggestions.push(walletAddress);
             }
         });
 
-        return suggestions.slice(0, 5);
+        return [...new Set(suggestions)].slice(0, 5);
     }, [searchQuery, contacts]);
 
     const conversationData = useMemo(() => {
         return conversations.map(convo => {
-            const otherParticipantId = convo.participants.find(p => p !== activeWallet?.toLowerCase());
+            const otherParticipantId = getOtherParticipantId(convo.participants);
+            const otherParticipantWallet = getParticipantWallet(otherParticipantId);
 
             // Try to find the contact in multiple ways
             let foundContact = null;
@@ -216,7 +250,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             else if (contacts && otherParticipantId) {
                 const lowerCaseOtherId = otherParticipantId.toLowerCase();
                 foundContactKey = Object.keys(contacts).find(key =>
-                    key.toLowerCase() === lowerCaseOtherId
+                    key.toLowerCase() === lowerCaseOtherId ||
+                    contacts[key]?.walletAddress?.toLowerCase() === otherParticipantWallet
                 );
                 if (foundContactKey) {
                     foundContact = contacts[foundContactKey];
@@ -225,7 +260,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
 
             // If no contact found, create a fallback
             if (!foundContact) {
-                foundContact = { walletAddress: otherParticipantId };
+                foundContact = { walletAddress: otherParticipantWallet };
             }
 
             // Use helper function to get contact display info
@@ -247,7 +282,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
                 lastMessageTime
             };
         });
-    }, [conversations, contacts, activeWallet, userType, getContactDisplayInfo]);
+    }, [conversations, contacts, userType, getContactDisplayInfo, getOtherParticipantId]);
 
     // Memoize fetch functions
     const fetchChatData = useCallback(async () => {
@@ -261,7 +296,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             setError(null);
 
             const [convos, contactProfiles] = await Promise.all([
-                getConversations(activeWallet),
+                getConversations(activeWallet, userType),
                 userType === 'doctor' ? getAllPatientProfiles() : getAllDoctorProfiles()
             ]);
 
@@ -269,6 +304,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             const serializedConversations = (convos || []).map(conv => ({
                 id: conv.id,
                 participants: conv.participants || [],
+                participantWallets: conv.participantWallets || [],
+                participantRoles: conv.participantRoles || {},
                 lastMessageTimestamp: conv.lastMessageTimestamp,
                 lastMessageText: conv.lastMessageText,
                 createdAt: conv.createdAt,
@@ -279,16 +316,24 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
 
             // Create proper contacts map with serialized data
             const contactsMap = {};
-            if (contactProfiles && Array.isArray(contactProfiles)) {
-                contactProfiles.forEach(profile => {
+            const profileList = Array.isArray(contactProfiles)
+                ? contactProfiles
+                : Object.values(contactProfiles || {});
+
+            if (profileList.length > 0) {
+                profileList.forEach(profile => {
                     if (profile.walletAddress) {
-                        contactsMap[profile.walletAddress.toLowerCase()] = {
+                        const contactWallet = profile.walletAddress.toLowerCase();
+                        const contactParticipantId = getParticipantId(otherUserType, contactWallet);
+                        contactsMap[contactParticipantId] = {
                             id: profile.id,
-                            walletAddress: profile.walletAddress,
+                            participantId: contactParticipantId,
+                            walletAddress: contactWallet,
                             name: profile.name || (userType === 'doctor' ? 'Unknown Patient' : 'Unknown Doctor'),
-                            specialty: profile.specialty || null,
+                            specialty: profile.specialty || profile.specialization || null,
                             age: profile.age || null,
-                            profilePhoto: profile.profilePhoto || null
+                            profilePhoto: profile.profilePhoto || profile.documents?.photo || null,
+                            documents: profile.documents || null,
                         };
                     }
                 });
@@ -305,7 +350,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [activeWallet, userType, toast]);
+    }, [activeWallet, userType, otherUserType, toast]);
 
     const fetchMessages = useCallback(async (conversationId) => {
         if (!conversationId) return;
@@ -319,6 +364,10 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
                 conversationId: msg.conversationId,
                 senderId: msg.senderId,
                 receiverId: msg.receiverId,
+                senderWallet: msg.senderWallet,
+                receiverWallet: msg.receiverWallet,
+                senderRole: msg.senderRole,
+                receiverRole: msg.receiverRole,
                 text: msg.text,
                 timestamp: msg.timestamp,
                 read: msg.read || false
@@ -358,12 +407,16 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
 
     useEffect(() => {
         if (initialContact && conversations.length > 0) {
-            const convo = conversations.find(c => c.participants.includes(initialContact.toLowerCase()));
+            const initialContactParticipantId = getParticipantId(otherUserType, initialContact);
+            const convo = conversations.find(c =>
+                c.participants.includes(initialContactParticipantId) ||
+                c.participants.includes(initialContact.toLowerCase())
+            );
             if (convo) {
                 setSelectedConversation(convo);
             }
         }
-    }, [initialContact, conversations]);
+    }, [initialContact, conversations, otherUserType]);
 
     // Memoize handlers
     const handleSelectConversation = useCallback((convo) => {
@@ -377,12 +430,18 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
 
         setIsSending(true);
         try {
-            const receiverId = selectedConversation.participants.find(p => p !== activeWallet.toLowerCase());
+            const receiverParticipantId = selectedConversation.otherParticipantId ||
+                getOtherParticipantId(selectedConversation.participants);
+            const receiverWallet = selectedConversation.contact?.walletAddress ||
+                getParticipantWallet(receiverParticipantId);
+            const receiverRole = getParticipantRole(receiverParticipantId) || otherUserType;
 
             await sendMessage({
                 conversationId: selectedConversation.id,
                 senderId: activeWallet,
-                receiverId,
+                receiverId: receiverWallet,
+                senderRole: userType,
+                receiverRole,
                 text: newMessage,
             });
 
@@ -400,18 +459,22 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
         } finally {
             setIsSending(false);
         }
-    }, [newMessage, selectedConversation, activeWallet, fetchMessages, fetchChatData, toast]);
+    }, [newMessage, selectedConversation, activeWallet, userType, otherUserType, getOtherParticipantId, fetchMessages, fetchChatData, toast]);
 
     const createNewConversation = useCallback(async (contactId) => {
         if (!activeWallet || !contactId) return;
 
         try {
             setIsSending(true);
+            const receiverWallet = getParticipantWallet(contactId);
+            const receiverRole = getParticipantRole(contactId) || otherUserType;
 
             await sendMessage({
                 conversationId: null,
                 senderId: activeWallet,
-                receiverId: contactId,
+                receiverId: receiverWallet,
+                senderRole: userType,
+                receiverRole,
                 text: 'Hello! I would like to start a conversation.',
             });
 
@@ -434,7 +497,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
         } finally {
             setIsSending(false);
         }
-    }, [activeWallet, fetchChatData, toast]);
+    }, [activeWallet, userType, otherUserType, fetchChatData, toast]);
 
     const handleSearch = useCallback((e) => {
         e.preventDefault();
@@ -718,7 +781,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
                                     // Use helper function to get contact display info
                                     const { contactName, profilePhoto } = getContactDisplayInfo(contactId, contact, userType);
 
-                                    const walletDisplay = `${contactId.substring(0, 6)}...${contactId.substring(contactId.length - 4)}`;
+                                    const contactWallet = contact.walletAddress || getParticipantWallet(contactId);
+                                    const walletDisplay = `${contactWallet.substring(0, 6)}...${contactWallet.substring(contactWallet.length - 4)}`;
 
                                     return (
                                         <div key={contactId} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors">
@@ -813,7 +877,9 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
             );
         }
 
-        const otherParticipantId = selectedConversation.participants.find(p => p !== activeWallet.toLowerCase());
+        const otherParticipantId = selectedConversation.otherParticipantId ||
+            getOtherParticipantId(selectedConversation.participants);
+        const otherParticipantWallet = getParticipantWallet(otherParticipantId);
 
         // Try to find the contact in multiple ways
         let contact = null;
@@ -828,7 +894,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
         else if (contacts && otherParticipantId) {
             const lowerCaseOtherId = otherParticipantId.toLowerCase();
             foundContactKey = Object.keys(contacts).find(key =>
-                key.toLowerCase() === lowerCaseOtherId
+                key.toLowerCase() === lowerCaseOtherId ||
+                contacts[key]?.walletAddress?.toLowerCase() === otherParticipantWallet
             );
             if (foundContactKey) {
                 contact = contacts[foundContactKey];
@@ -837,7 +904,7 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
 
         // If no contact found, create a fallback
         if (!contact) {
-            contact = { walletAddress: otherParticipantId };
+            contact = { walletAddress: otherParticipantWallet };
         }
 
         // Use helper function to get contact display info
@@ -868,7 +935,8 @@ const Chat = ({ activeWallet, userType, initialContact }) => {
                         <div className="space-y-6 pr-4">
                             {messages.length > 0 ? messages.map((msg, index) => {
                                 // Determine if this is the current user's message
-                                const isOwnMessage = msg.senderId.toLowerCase() === activeWallet.toLowerCase();
+                                const isOwnMessage = isCurrentParticipant(msg.senderId) ||
+                                    (msg.senderWallet?.toLowerCase() === normalizedWallet && msg.senderRole === userType);
 
                                 return (
                                     <div key={msg.id} className={cn(

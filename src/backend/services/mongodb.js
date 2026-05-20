@@ -414,20 +414,42 @@ export const getAppointmentsForPatient = async (patientId) => {
     return appointments.map(serializeMongoObject);
 };
 
-export const updateAppointmentStatus = async (appointmentId, status) => {
+export const updateAppointmentStatus = async (appointmentId, status, details = {}) => {
     const db = await getDb();
-    await db.collection('appointments').updateOne({ id: appointmentId }, { $set: { status } });
+    await db.collection('appointments').updateOne(
+        { id: appointmentId },
+        { $set: { status, ...details, updatedAt: new Date().toISOString() } }
+    );
 };
 
 
 // Chat / Messaging
-export const getConversations = async (walletAddress) => {
+const normalizeChatRole = (role) => {
+    if (role === 'doctor' || role === 'patient') return role;
+    return null;
+};
+
+const getChatParticipantId = (walletAddress, role) => {
+    const lowerWallet = (walletAddress || '').toLowerCase();
+    const normalizedRole = normalizeChatRole(role);
+    return normalizedRole ? `${normalizedRole}:${lowerWallet}` : lowerWallet;
+};
+
+export const getConversations = async (walletAddress, userType = null) => {
     try {
         const db = await getDb();
         const lowerCaseWallet = walletAddress.toLowerCase();
+        const normalizedRole = normalizeChatRole(userType);
+        const participantIds = normalizedRole
+            ? [getChatParticipantId(lowerCaseWallet, normalizedRole), lowerCaseWallet]
+            : [
+                lowerCaseWallet,
+                getChatParticipantId(lowerCaseWallet, 'doctor'),
+                getChatParticipantId(lowerCaseWallet, 'patient'),
+            ];
         
         const conversations = await db.collection('conversations')
-            .find({ participants: lowerCaseWallet })
+            .find({ participants: { $in: participantIds } })
             .sort({ lastMessageTimestamp: -1 })
             .toArray();
             
@@ -454,17 +476,22 @@ export const getMessages = async (conversationId) => {
     }
 }
 
-export const sendMessage = async ({ conversationId, senderId, receiverId, text }) => {
+export const sendMessage = async ({ conversationId, senderId, receiverId, text, senderRole = null, receiverRole = null }) => {
     try {
         const db = await getDb();
         const lowerSender = senderId.toLowerCase();
         const lowerReceiver = receiverId.toLowerCase();
+        const normalizedSenderRole = normalizeChatRole(senderRole);
+        const normalizedReceiverRole = normalizeChatRole(receiverRole);
+        const senderParticipantId = getChatParticipantId(lowerSender, normalizedSenderRole);
+        const receiverParticipantId = getChatParticipantId(lowerReceiver, normalizedReceiverRole);
+        const timestamp = new Date().toISOString();
         
         let convId = conversationId;
         
         if (!convId) {
             const existingConversation = await db.collection('conversations').findOne({
-                participants: { $all: [lowerSender, lowerReceiver] }
+                participants: { $all: [senderParticipantId, receiverParticipantId] }
             });
             
             if (existingConversation) {
@@ -473,10 +500,15 @@ export const sendMessage = async ({ conversationId, senderId, receiverId, text }
                 convId = uuidv4();
                 const newConversation = {
                     id: convId,
-                    participants: [lowerSender, lowerReceiver],
-                    lastMessageTimestamp: new Date().toISOString(),
+                    participants: [senderParticipantId, receiverParticipantId],
+                    participantWallets: [lowerSender, lowerReceiver],
+                    participantRoles: {
+                        [senderParticipantId]: normalizedSenderRole,
+                        [receiverParticipantId]: normalizedReceiverRole,
+                    },
+                    lastMessageTimestamp: timestamp,
                     lastMessageText: text,
-                    createdAt: new Date().toISOString(),
+                    createdAt: timestamp,
                 };
                 await db.collection('conversations').insertOne(newConversation);
             }
@@ -485,10 +517,14 @@ export const sendMessage = async ({ conversationId, senderId, receiverId, text }
         const message = {
             id: uuidv4(),
             conversationId: convId,
-            senderId: lowerSender,
-            receiverId: lowerReceiver,
+            senderId: senderParticipantId,
+            receiverId: receiverParticipantId,
+            senderWallet: lowerSender,
+            receiverWallet: lowerReceiver,
+            senderRole: normalizedSenderRole,
+            receiverRole: normalizedReceiverRole,
             text,
-            timestamp: new Date().toISOString(),
+            timestamp,
             read: false,
         };
 
@@ -500,7 +536,10 @@ export const sendMessage = async ({ conversationId, senderId, receiverId, text }
                 $set: { 
                     lastMessageTimestamp: message.timestamp, 
                     lastMessageText: text,
-                    updatedAt: new Date().toISOString()
+                    participantWallets: [lowerSender, lowerReceiver],
+                    [`participantRoles.${senderParticipantId}`]: normalizedSenderRole,
+                    [`participantRoles.${receiverParticipantId}`]: normalizedReceiverRole,
+                    updatedAt: timestamp
                 } 
             }
         );
@@ -549,6 +588,29 @@ export const updateFundraiserRequestStatus = async (requestId, status, campaignI
         update.$set.campaignId = campaignId;
     }
     await db.collection('fundraisingRequests').updateOne({ id: requestId }, update);
+}
+
+export const addFundraiserProof = async ({ requestId, patientId, title, amount, note, receipt }) => {
+    const db = await getDb();
+    const proof = {
+        id: uuidv4(),
+        patientId: (patientId || '').toLowerCase(),
+        title: title || 'Expense proof',
+        amount: Number(amount) || 0,
+        note: note || '',
+        receipt,
+        uploadedAt: new Date().toISOString(),
+    };
+
+    await db.collection('fundraisingRequests').updateOne(
+        { id: requestId, patientId: proof.patientId },
+        {
+            $push: { proofs: proof },
+            $set: { updatedAt: new Date().toISOString() },
+        }
+    );
+
+    return serializeMongoObject(proof);
 }
 
 // Server-side function that only updates the database

@@ -89,7 +89,14 @@ const DoctorRegistrationForm = ({ activeWallet, onSuccess }) => {
                 govtId: idUri,
                 photo: photoUri,
             },
-            verified: false, // Default to not verified
+            verified: false,
+            verificationStatus: 'pending',
+            submittedAt: new Date().toISOString(),
+            verificationDocuments: {
+                licenseCertificateUploaded: Boolean(licenseUri),
+                govtIdUploaded: Boolean(idUri),
+                profilePhotoUploaded: Boolean(photoUri),
+            },
             walletAddress: activeWallet,
         };
 

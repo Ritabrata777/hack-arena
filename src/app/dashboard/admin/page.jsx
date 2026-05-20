@@ -117,6 +117,28 @@ const ViewRequestDialog = ({ request, patient, doctor, onCheckFraud, fraudScore,
                         )}
                     </div>
                 </div>
+                <div>
+                    <h4 className="font-semibold">Fund Usage Proof</h4>
+                    <div className="mt-2 space-y-2">
+                        {(request.proofs && request.proofs.length > 0) ? (
+                            request.proofs.map((proof) => (
+                                <div key={proof.id} className="flex items-center justify-between bg-muted/50 p-2 rounded-md">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium truncate">{proof.title}</p>
+                                        <p className="text-xs text-muted-foreground">{proof.amount} APT - {new Date(proof.uploadedAt).toLocaleString()}</p>
+                                    </div>
+                                    {proof.receipt?.uri && (
+                                        <a href={proof.receipt.uri} download={proof.receipt.name || 'receipt'} target="_blank" rel="noopener noreferrer">
+                                            <Button variant="outline" size="sm"><Download className="mr-2" />Receipt</Button>
+                                        </a>
+                                    )}
+                                </div>
+                            ))
+                        ) : (
+                            <p className="text-muted-foreground">No spending receipts have been uploaded yet.</p>
+                        )}
+                    </div>
+                </div>
             </div>
         </ScrollArea>
     </DialogContent>
@@ -264,7 +286,13 @@ const AdminDashboard = () => {
             const chainStatus = await checkDoctorVerificationStatus(formattedWallet);
             if (chainStatus?.isVerified) {
                 if (!doctor.verified) {
-                    const updatedProfile = { ...doctor, verified: true };
+                    const updatedProfile = {
+                        ...doctor,
+                        verified: true,
+                        verificationStatus: 'verified',
+                        verifiedAt: new Date().toISOString(),
+                        verifiedBy: activeWallet || 'admin',
+                    };
                     await updateDoctorProfile(wallet, updatedProfile);
                     setDoctorProfiles(prev => ({ ...prev, [lowerCaseWallet]: updatedProfile }));
                 }
@@ -276,7 +304,13 @@ const AdminDashboard = () => {
         setIsVerifying(wallet);
         try {
             await verifyDoctorOnBlockchain(formattedWallet);
-            const updatedProfile = { ...doctor, verified: true };
+            const updatedProfile = {
+                ...doctor,
+                verified: true,
+                verificationStatus: 'verified',
+                verifiedAt: new Date().toISOString(),
+                verifiedBy: activeWallet || 'admin',
+            };
             await updateDoctorProfile(wallet, updatedProfile);
             setDoctorProfiles(prev => ({ ...prev, [lowerCaseWallet]: updatedProfile }));
             toast({ title: "Success", description: `Doctor ${wallet.substring(0, 6)}... has been verified.` });
@@ -285,7 +319,13 @@ const AdminDashboard = () => {
             const msg = String(error?.message || "");
             if (msg.toLowerCase().includes('already verified')) {
                 // If chain says already verified, just sync our DB/state and show success
-                const updatedProfile = { ...doctor, verified: true };
+                const updatedProfile = {
+                    ...doctor,
+                    verified: true,
+                    verificationStatus: 'verified',
+                    verifiedAt: new Date().toISOString(),
+                    verifiedBy: activeWallet || 'admin',
+                };
                 try {
                     await updateDoctorProfile(wallet, updatedProfile);
                     setDoctorProfiles(prev => ({ ...prev, [lowerCaseWallet]: updatedProfile }));
@@ -294,6 +334,31 @@ const AdminDashboard = () => {
             } else {
                 toast({ variant: "destructive", title: "Verification Failed", description: error.message || "Could not verify the doctor." });
             }
+        } finally {
+            setIsVerifying(null);
+        }
+    };
+
+    const handleRejectDoctor = async (wallet) => {
+        const lowerCaseWallet = wallet.toLowerCase();
+        const doctor = doctorProfiles[lowerCaseWallet];
+        if (!doctor) return;
+
+        setIsVerifying(wallet);
+        try {
+            const updatedProfile = {
+                ...doctor,
+                verified: false,
+                verificationStatus: 'rejected',
+                rejectedAt: new Date().toISOString(),
+                rejectedBy: activeWallet || 'admin',
+            };
+            await updateDoctorProfile(wallet, updatedProfile);
+            setDoctorProfiles(prev => ({ ...prev, [lowerCaseWallet]: updatedProfile }));
+            toast({ title: "Doctor Rejected", description: `Registration for ${doctor.name || wallet.substring(0, 6)} was marked rejected.` });
+        } catch (error) {
+            console.error("Doctor rejection failed:", error);
+            toast({ variant: "destructive", title: "Rejection Failed", description: error.message || "Could not reject the doctor." });
         } finally {
             setIsVerifying(null);
         }
@@ -570,6 +635,7 @@ const AdminDashboard = () => {
                                                 <TableRow>
                                                     <TableHead className="w-[350px]">Doctor</TableHead>
                                                     <TableHead>Status</TableHead>
+                                                    <TableHead>License</TableHead>
                                                     <TableHead>Email</TableHead>
                                                     <TableHead className="text-right">Actions</TableHead>
                                                 </TableRow>
@@ -577,6 +643,8 @@ const AdminDashboard = () => {
                                             <TableBody>
                                                 {Object.values(doctorProfiles).map(p => {
                                                     const shortWallet = `${p.walletAddress.substring(0, 6)}...${p.walletAddress.substring(p.walletAddress.length - 4)}`;
+                                                    const verificationStatus = p.verificationStatus || (p.verified ? 'verified' : 'pending');
+                                                    const licenseExpired = p.licenseExpiry ? new Date(p.licenseExpiry) < new Date() : false;
                                                     return (
                                                         <TableRow key={p.walletAddress}>
                                                             <TableCell>
@@ -596,10 +664,15 @@ const AdminDashboard = () => {
                                                             </TableCell>
                                                             <TableCell>
                                                                 <div className="flex flex-col gap-1">
-                                                                    {p.verified ? (
+                                                                    {verificationStatus === 'verified' ? (
                                                                         <Badge variant="secondary" className="text-green-600 border-green-600 bg-green-50 w-fit">
                                                                             <ShieldCheck className="mr-1 h-3 w-3" />
                                                                             Verified
+                                                                        </Badge>
+                                                                    ) : verificationStatus === 'rejected' ? (
+                                                                        <Badge variant="destructive" className="w-fit">
+                                                                            <ShieldX className="mr-1 h-3 w-3" />
+                                                                            Rejected
                                                                         </Badge>
                                                                     ) : (
                                                                         <Badge variant="outline" className="text-gray-600 w-fit">
@@ -609,6 +682,20 @@ const AdminDashboard = () => {
                                                                     )}
                                                                     {p.banned && <Badge variant="destructive" className="w-fit">Banned</Badge>}
                                                                     {isContractOwner(p.walletAddress) && <Badge variant="secondary" className="w-fit">Owner</Badge>}
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <div className="space-y-1">
+                                                                    <p className="text-sm font-medium">{p.licenseId || 'Not provided'}</p>
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {p.licenseExpiry && (
+                                                                            <Badge variant={licenseExpired ? 'destructive' : 'outline'} className="text-xs">
+                                                                                {licenseExpired ? 'Expired' : 'Expires'} {new Date(p.licenseExpiry).toLocaleDateString()}
+                                                                            </Badge>
+                                                                        )}
+                                                                        {p.documents?.license && <Badge variant="secondary" className="text-xs">License file</Badge>}
+                                                                        {p.documents?.govtId && <Badge variant="outline" className="text-xs">ID proof</Badge>}
+                                                                    </div>
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell>{p.email}</TableCell>
@@ -650,6 +737,21 @@ const AdminDashboard = () => {
                                                                                             <p><strong>Experience:</strong> {p.experience} years</p>
                                                                                             <p><strong>Clinic:</strong> {p.clinic || 'N/A'}</p>
                                                                                             <p><strong>Location:</strong> {p.location}</p>
+                                                                                            <div className="rounded-md border p-3 space-y-2">
+                                                                                                <h4 className="font-semibold">Verification Review</h4>
+                                                                                                <p><strong>Status:</strong> {p.verificationStatus || (p.verified ? 'verified' : 'pending')}</p>
+                                                                                                <p><strong>Submitted:</strong> {p.submittedAt ? new Date(p.submittedAt).toLocaleString() : 'Not recorded'}</p>
+                                                                                                <p><strong>Verified:</strong> {p.verifiedAt ? new Date(p.verifiedAt).toLocaleString() : 'Not yet'}</p>
+                                                                                                <p><strong>Reviewed by:</strong> {p.verifiedBy || p.rejectedBy || 'Not recorded'}</p>
+                                                                                                <div className="flex flex-wrap gap-2 pt-1">
+                                                                                                    <Badge variant={p.licenseId ? 'secondary' : 'destructive'}>Registration number</Badge>
+                                                                                                    <Badge variant={p.documents?.license ? 'secondary' : 'destructive'}>License certificate</Badge>
+                                                                                                    <Badge variant={p.documents?.govtId ? 'outline' : 'secondary'}>Government ID</Badge>
+                                                                                                    <Badge variant={p.licenseExpiry && new Date(p.licenseExpiry) < new Date() ? 'destructive' : 'outline'}>
+                                                                                                        License expiry
+                                                                                                    </Badge>
+                                                                                                </div>
+                                                                                            </div>
                                                                                         </div>
                                                                                         <div className="space-y-4">
                                                                                             <h4 className="font-semibold text-lg">Uploaded Documents</h4>
@@ -673,6 +775,14 @@ const AdminDashboard = () => {
                                                                         <DropdownMenuItem onClick={() => handleToggleVerify(p.walletAddress)} disabled={p.verified || isVerifying === p.walletAddress}>
                                                                             {isVerifying === p.walletAddress ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
                                                                             {p.verified ? 'Already Verified' : 'Verify Doctor'}
+                                                                        </DropdownMenuItem>
+                                                                        <DropdownMenuItem
+                                                                            className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                                                                            onClick={() => handleRejectDoctor(p.walletAddress)}
+                                                                            disabled={p.verified || p.verificationStatus === 'rejected' || isVerifying === p.walletAddress}
+                                                                        >
+                                                                            {isVerifying === p.walletAddress ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldX className="mr-2 h-4 w-4" />}
+                                                                            {p.verificationStatus === 'rejected' ? 'Already Rejected' : 'Reject Registration'}
                                                                         </DropdownMenuItem>
                                                                         <DropdownMenuItem
                                                                             className={p.banned ? '' : 'text-destructive focus:bg-destructive/10 focus:text-destructive'}

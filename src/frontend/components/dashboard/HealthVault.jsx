@@ -2,6 +2,7 @@
 'use client';
 import * as React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import QRCode from 'qrcode';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/frontend/components/ui/card';
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
@@ -10,7 +11,7 @@ import { Textarea } from '@/frontend/components/ui/textarea';
 import { useToast } from "@/frontend/hooks/use-toast";
 import { generateEmergencyCode, getActiveEmergencyCode, revokeEmergencyCode, getPatientProfile, updatePatientProfile } from '@/backend/services/mongodb';
 import { encryptData, decryptData } from '@/backend/lib/crypto';
-import { Loader2, UploadCloud, FileText, Trash2, KeyRound, Copy, RefreshCw, ShieldOff, Download, ShieldPlus, Eye, Search, Shield, Upload } from 'lucide-react';
+import { Loader2, UploadCloud, FileText, Trash2, KeyRound, Copy, RefreshCw, ShieldOff, Download, ShieldPlus, Eye, Search, Shield, Upload, QrCode, ExternalLink, Link as LinkIcon } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/frontend/components/ui/select';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/frontend/components/ui/tooltip';
@@ -56,6 +57,8 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     const [isSavingSummary, setIsSavingSummary] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [emergencySummary, setEmergencySummary] = useState(normalizeEmergencySummary());
+    const [emergencyAccessUrl, setEmergencyAccessUrl] = useState('');
+    const [qrDataUrl, setQrDataUrl] = useState('');
     // Consent UI moved to dedicated tab
     const [query, setQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
@@ -102,6 +105,39 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const buildQr = async () => {
+            if (!activeCode?.code || typeof window === 'undefined') {
+                setEmergencyAccessUrl('');
+                setQrDataUrl('');
+                return;
+            }
+
+            const accessUrl = `${window.location.origin}/emergency-access?code=${encodeURIComponent(activeCode.code)}`;
+            setEmergencyAccessUrl(accessUrl);
+
+            try {
+                const dataUrl = await QRCode.toDataURL(accessUrl, {
+                    width: 280,
+                    margin: 2,
+                    errorCorrectionLevel: 'M',
+                });
+                if (isMounted) setQrDataUrl(dataUrl);
+            } catch (error) {
+                console.error('Failed to generate emergency QR code:', error);
+                if (isMounted) setQrDataUrl('');
+            }
+        };
+
+        buildQr();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [activeCode?.code]);
 
     const handleFileUpload = async (e, category, emergencyVisible) => {
         const file = e.target.files[0];
@@ -416,6 +452,26 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         }
     }
 
+    const copyEmergencyLink = async () => {
+        if (!emergencyAccessUrl) return;
+        const ok = await copyTextToClipboard(emergencyAccessUrl);
+        if (ok) {
+            toast({ title: 'Link Copied', description: 'Emergency QR link copied to clipboard.' });
+        } else {
+            toast({ variant: 'destructive', title: 'Copy failed', description: 'Unable to copy link. Please copy manually.' });
+        }
+    };
+
+    const downloadQrCard = () => {
+        if (!qrDataUrl) return;
+        const link = document.createElement('a');
+        link.href = qrDataUrl;
+        link.download = `medichain-emergency-qr-${activeCode?.code || 'card'}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const totalBytes = useMemo(() => {
         try {
             return documents.reduce((sum, d) => {
@@ -680,6 +736,39 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                                     <div className="flex items-center gap-2">
                                         <Input readOnly value={activeCode.code} className="font-mono text-lg tracking-widest bg-muted" />
                                         <Button variant="outline" size="icon" onClick={copyToClipboard}><Copy className="h-4 w-4" /></Button>
+                                    </div>
+                                </div>
+                                <div className="rounded-lg border p-3 space-y-3 bg-muted/20">
+                                    <div className="flex items-center gap-2">
+                                        <QrCode className="h-5 w-5 text-primary" />
+                                        <div>
+                                            <p className="font-semibold text-sm">Emergency QR Card</p>
+                                            <p className="text-xs text-muted-foreground">Scan to open the critical medical summary.</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-center rounded-md bg-white p-3">
+                                        {qrDataUrl ? (
+                                            <img src={qrDataUrl} alt="Emergency access QR code" className="h-48 w-48" />
+                                        ) : (
+                                            <div className="flex h-48 w-48 items-center justify-center text-muted-foreground">
+                                                <Loader2 className="h-6 w-6 animate-spin" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <Input readOnly value={emergencyAccessUrl} className="text-xs" />
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <Button type="button" variant="outline" onClick={copyEmergencyLink}>
+                                            <LinkIcon className="mr-2 h-4 w-4" />
+                                            Copy QR Link
+                                        </Button>
+                                        <Button type="button" variant="outline" onClick={downloadQrCard} disabled={!qrDataUrl}>
+                                            <Download className="mr-2 h-4 w-4" />
+                                            Download QR
+                                        </Button>
+                                        <Button type="button" variant="secondary" onClick={() => window.open(emergencyAccessUrl, '_blank')} disabled={!emergencyAccessUrl}>
+                                            <ExternalLink className="mr-2 h-4 w-4" />
+                                            Test Access Page
+                                        </Button>
                                     </div>
                                 </div>
                                 <Button className="w-full" variant="destructive" onClick={handleRevokeCode} disabled={isRevoking}>

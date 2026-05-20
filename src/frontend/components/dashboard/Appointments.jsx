@@ -7,12 +7,12 @@ import { useToast } from "@/frontend/hooks/use-toast";
 import { ScrollArea } from "@/frontend/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/frontend/components/ui/table";
 import { Badge } from '@/frontend/components/ui/badge';
-import { Check, X, CalendarDays, Loader2 } from 'lucide-react';
+import { Check, X, CalendarDays, Loader2, FileText } from 'lucide-react';
 import { updateAppointmentStatus } from '@/backend/services/mongodb';
 import ManageTimeSlots from '@/frontend/components/dashboard/ManageTimeSlots';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/frontend/components/ui/tabs';
 
-const Appointments = ({ appointments, setAppointments, patientProfiles, refreshData, activeWallet }) => {
+const Appointments = ({ appointments, setAppointments, patientProfiles, refreshData, activeWallet, setActiveTab }) => {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(null); // Store ID of loading request
 
@@ -43,6 +43,20 @@ const Appointments = ({ appointments, setAppointments, patientProfiles, refreshD
         if (a.status !== 'pending' && b.status === 'pending') return 1;
         return new Date(b.requestDate) - new Date(a.requestDate);
     });
+
+    const handleStartConsultation = (appointment) => {
+        const patient = patientProfiles[appointment.patientId.toLowerCase()];
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('medichain:consultationDraft', JSON.stringify({
+                id: appointment.id,
+                patientId: appointment.patientId,
+                patientName: patient?.name || '',
+                appointmentTime: appointment.appointmentTime,
+                notes: appointment.notes || '',
+            }));
+        }
+        if (setActiveTab) setActiveTab('new-consultation');
+    };
 
     return (
         <Tabs defaultValue="requests" className="w-full">
@@ -80,9 +94,9 @@ const Appointments = ({ appointments, setAppointments, patientProfiles, refreshD
                                                     <TableCell>{new Date(req.appointmentTime).toLocaleString()}</TableCell>
                                                     <TableCell>
                                                         <Badge variant={
-                                                            req.status === 'confirmed' ? 'secondary' : 
+                                                            req.status === 'confirmed' || req.status === 'completed' ? 'secondary' : 
                                                             req.status === 'denied' ? 'destructive' : 'default'
-                                                        } className={req.status === 'confirmed' && 'text-green-500 border-green-500'}>
+                                                        } className={(req.status === 'confirmed' || req.status === 'completed') && 'text-green-500 border-green-500'}>
                                                             {req.status}
                                                         </Badge>
                                                     </TableCell>
@@ -93,6 +107,13 @@ const Appointments = ({ appointments, setAppointments, patientProfiles, refreshD
                                                                 <Button size="sm" onClick={() => handleStatusUpdate(req.id, 'confirmed')}><Check className="mr-2 h-4 w-4" />Confirm</Button>
                                                                 <Button size="sm" variant="destructive" onClick={() => handleStatusUpdate(req.id, 'denied')}><X className="mr-2 h-4 w-4" />Deny</Button>
                                                             </>
+                                                        ) : req.status === 'confirmed' ? (
+                                                            <Button size="sm" variant="secondary" onClick={() => handleStartConsultation(req)}>
+                                                                <FileText className="mr-2 h-4 w-4" />
+                                                                Start Consult
+                                                            </Button>
+                                                        ) : req.status === 'completed' ? (
+                                                            <span className="text-green-600 text-sm">Prescription saved</span>
                                                         ) : (
                                                             <span className="text-muted-foreground text-sm">Actioned</span>
                                                         )}

@@ -10,10 +10,11 @@ import { Label } from '@/frontend/components/ui/label';
 import { Textarea } from '@/frontend/components/ui/textarea';
 import {
     FileText, Loader2, Send, Clock, CheckCircle, XCircle, Eye,
-    RefreshCw, Search, Filter, ArrowLeft, ShieldCheck
+    RefreshCw, Search, Filter, ArrowLeft, ShieldCheck, Brain
 } from 'lucide-react';
 import { useToast } from "@/frontend/hooks/use-toast";
 import { getAccessRequestsByDoctor, createAccessRequest, getPatientProfile, addAuditLog } from '@/backend/services/mongodb';
+import { summarizeMedicalRecord } from '@/backend/ai/flows/summarize-medical-record';
 import { canDoctorAccessRecord } from '@/frontend/lib/blockchain';
 import {
     Tooltip,
@@ -41,6 +42,8 @@ const SharedDocuments = ({ activeWallet }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [activeGrant, setActiveGrant] = useState(null); // The specific permission object
+    const [summaries, setSummaries] = useState({});
+    const [summarizingDocId, setSummarizingDocId] = useState(null);
 
     // Load doctor's access requests on component mount
     const loadRequests = useCallback(async () => {
@@ -222,6 +225,7 @@ const SharedDocuments = ({ activeWallet }) => {
         setSharedDocs([]);
         setSearchQuery('');
         setCategoryFilter('all');
+        setSummaries({});
     };
 
     const filteredDocs = useMemo(() => {
@@ -231,6 +235,39 @@ const SharedDocuments = ({ activeWallet }) => {
             return matchesSearch && matchesCategory;
         });
     }, [sharedDocs, searchQuery, categoryFilter]);
+
+    const extractTextFromDataUri = (dataUri = '') => {
+        try {
+            if (!dataUri.startsWith('data:text')) return '';
+            const [, payload = ''] = dataUri.split(',');
+            const binary = atob(payload);
+            const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+            return new TextDecoder().decode(bytes).slice(0, 12000);
+        } catch {
+            return '';
+        }
+    };
+
+    const handleSummarizeRecord = async (event, doc) => {
+        event.stopPropagation();
+        setSummarizingDocId(doc.id);
+        try {
+            const result = await summarizeMedicalRecord({
+                recordName: doc.name || 'Medical record',
+                category: doc.category || 'Record',
+                recordDate: doc.metadata?.recordDate || doc.uploadedAt,
+                notes: doc.metadata?.notes || '',
+                text: extractTextFromDataUri(doc.dataUri || ''),
+            });
+            setSummaries(prev => ({ ...prev, [doc.id]: result }));
+            toast({ title: 'Summary Ready', description: 'AI notes were generated for this record.' });
+        } catch (error) {
+            console.error('Medical record summary failed:', error);
+            toast({ variant: 'destructive', title: 'Summary Failed', description: error.message || 'Could not summarize this record.' });
+        } finally {
+            setSummarizingDocId(null);
+        }
+    };
 
     // Secure Viewer Logic (Single File)
     const openSecureDocument = async (doc) => {
@@ -489,6 +526,38 @@ const SharedDocuments = ({ activeWallet }) => {
                                             <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
                                             <span>{doc.size ? `${(doc.size / 1024 / 1024).toFixed(2)} MB` : 'Metadata'}</span>
                                         </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="mt-3 w-full"
+                                            onClick={(event) => handleSummarizeRecord(event, doc)}
+                                            disabled={summarizingDocId === doc.id}
+                                        >
+                                            {summarizingDocId === doc.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
+                                            Summarize
+                                        </Button>
+                                        {summaries[doc.id] && (
+                                            <div className="mt-3 rounded-md border bg-muted/40 p-3 text-xs space-y-2">
+                                                <p className="font-medium text-foreground">Doctor Notes</p>
+                                                <p className="text-muted-foreground whitespace-pre-wrap">{summaries[doc.id].summary}</p>
+                                                {summaries[doc.id].keyFindings?.length > 0 && (
+                                                    <p className="text-muted-foreground">
+                                                        <span className="font-medium text-foreground">Key:</span> {summaries[doc.id].keyFindings.join('; ')}
+                                                    </p>
+                                                )}
+                                                {summaries[doc.id].followUps?.length > 0 && (
+                                                    <p className="text-muted-foreground">
+                                                        <span className="font-medium text-foreground">Follow-up:</span> {summaries[doc.id].followUps.join('; ')}
+                                                    </p>
+                                                )}
+                                                {summaries[doc.id].cautions?.length > 0 && (
+                                                    <p className="text-muted-foreground">
+                                                        <span className="font-medium text-foreground">Caution:</span> {summaries[doc.id].cautions.join('; ')}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>

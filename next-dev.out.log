@@ -58,3 +58,29 @@ AI service busy/over quota, falling back to heuristic detection
  POST /dashboard/doctor 200 in 306ms
  POST /dashboard/doctor 200 in 313ms
  POST /dashboard/doctor 200 in 304ms
+ ✓ Compiled in 376ms
+ ✓ Compiled in 238ms
+ ✓ Compiled in 212ms
+ ✓ Compiled in 229ms
+ ✓ Compiled in 250ms
+ ✓ Compiled in 237ms
+ ✓ Compiled in 495ms
+ ✓ Compiled in 588ms
+ GET / 200 in 361ms
+ ✓ Compiled in 444ms
+ ✓ Compiled in 214ms
+ GET / 200 in 383ms
+ ✓ Compiled in 1367ms
+ GET / 200 in 361ms
+ ✓ Compiled in 218ms
+ ✓ Compiled in 291ms
+ ✓ Compiled in 895ms
+ GET / 200 in 454ms
+ GET / 200 in 320ms
+ ✓ Compiled in 585ms
+ ✓ Compiled in 168ms
+ ✓ Compiled in 511ms
+ ✓ Compiled in 242ms
+ ✓ Compiled in 547ms
+ ✓ Compiled in 491ms
+ ✓ Compiled in 193ms

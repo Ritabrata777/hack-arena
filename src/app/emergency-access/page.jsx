@@ -1,6 +1,6 @@
 
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/frontend/components/ui/card';
 import { Input } from '@/frontend/components/ui/input';
@@ -19,8 +19,9 @@ const EmergencyAccessPage = () => {
     const [vaultData, setVaultData] = useState(null);
     const { toast } = useToast();
 
-    const handleAccessVault = async () => {
-        if (accessCode.length < 6) {
+    const handleAccessVault = async (codeOverride = null) => {
+        const codeToUse = (codeOverride || accessCode).trim().toUpperCase();
+        if (codeToUse.length < 6) {
             toast({ variant: 'destructive', title: 'Invalid Code', description: 'Access code must be at least 6 characters.' });
             return;
         }
@@ -29,7 +30,7 @@ const EmergencyAccessPage = () => {
         setVaultData(null);
 
         try {
-            const data = await getEmergencyVaultData(accessCode);
+            const data = await getEmergencyVaultData(codeToUse);
             if (data && data.patientProfile) {
                 const decryptedDocuments = (data.healthDocuments || []).map(doc => {
                     try {
@@ -62,6 +63,18 @@ const EmergencyAccessPage = () => {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        if (!code) return;
+
+        const normalizedCode = code.trim().toUpperCase();
+        setAccessCode(normalizedCode);
+        handleAccessVault(normalizedCode);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     
     return (
         <div className="min-h-screen flex flex-col items-center justify-center gradient-bg-services p-4">

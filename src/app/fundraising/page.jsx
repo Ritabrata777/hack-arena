@@ -134,6 +134,37 @@ const ViewDocumentsDialog = ({ request }) => (
     </DialogContent>
 )
 
+const ViewProofsDialog = ({ campaign }) => (
+    <DialogContent className="max-w-2xl">
+        <DialogHeader>
+            <DialogTitle>Fund Usage Proof</DialogTitle>
+            <DialogDescription>
+                Receipts uploaded by the patient to show how donated funds were spent.
+            </DialogDescription>
+        </DialogHeader>
+        <div className="py-4 space-y-2">
+            {(campaign?.proofs && campaign.proofs.length > 0) ? (
+                campaign.proofs.map((proof) => (
+                    <div key={proof.id} className="flex items-center justify-between gap-3 bg-muted/50 p-3 rounded-md">
+                        <div className="min-w-0">
+                            <p className="font-medium text-sm truncate">{proof.title}</p>
+                            <p className="text-xs text-muted-foreground">{proof.amount} APT - {new Date(proof.uploadedAt).toLocaleString()}</p>
+                            {proof.note && <p className="text-xs text-muted-foreground truncate">{proof.note}</p>}
+                        </div>
+                        {proof.receipt?.uri && (
+                            <a href={proof.receipt.uri} download={proof.receipt.name || 'receipt'} target="_blank" rel="noopener noreferrer">
+                                <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" />Receipt</Button>
+                            </a>
+                        )}
+                    </div>
+                ))
+            ) : (
+                <p className="text-muted-foreground text-center py-4">No spending receipts have been uploaded yet.</p>
+            )}
+        </div>
+    </DialogContent>
+)
+
 const ViewStoryDialog = ({ campaign }) => (
     <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -441,6 +472,16 @@ const CampaignCard = ({ campaign, patient, doctor, fetchCampaignData }) => {
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button variant="outline" className="w-full flex items-center justify-center">
+                                <CheckCircle className="mr-2 h-4 w-4" /> Proofs
+                            </Button>
+                        </DialogTrigger>
+                        <ViewProofsDialog campaign={campaign} />
+                    </Dialog>
+                </div>
+                <div className="flex w-full">
+                    <Dialog>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="w-full flex items-center justify-center">
                                 <Users className="mr-2 h-4 w-4" /> View Donors
                             </Button>
                         </DialogTrigger>
@@ -486,7 +527,8 @@ const FundraisingPage = () => {
                     title: request.title || 'Untitled Campaign',
                     description: request.description || 'No description provided',
                     isActive: true,
-                    documents: request.documents || []
+                    documents: request.documents || [],
+                    proofs: request.proofs || [],
                 };
             });
 
@@ -499,7 +541,8 @@ const FundraisingPage = () => {
                     return {
                         ...c,
                         id: c.id.toString() || `blockchain-${index}`, // Ensure unique ID
-                        documents: request?.documents || []
+                        documents: request?.documents || [],
+                        proofs: request?.proofs || [],
                     };
                 });
             } else {
