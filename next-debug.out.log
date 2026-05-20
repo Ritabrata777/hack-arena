@@ -1,0 +1,14 @@
+   ▲ Next.js 15.3.3 (Turbopack)
+   - Local:        http://localhost:9010
+   - Network:      http://192.168.1.41:9010
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\LENOVO\\Downloads\\MediChain-main\\MediChain-main',
+  testMode: true
+}
+ ✓ Ready in 1801ms
+ ○ Compiling / ...
+ ✓ Compiled / in 4s
+ GET / 200 in 5003ms

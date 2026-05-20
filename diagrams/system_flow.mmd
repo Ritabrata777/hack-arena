@@ -1,0 +1,46 @@
+%% MediChain – System Flow (Mermaid)
+flowchart LR
+  subgraph Clients
+    P[Patient]
+    D[Doctor]
+    Don[Donor]
+  end
+
+  subgraph Web[Next.js 14 Web App]
+    UI[UI + shadcn/ui + Tailwind]
+  end
+
+  subgraph API[Node.js Backend API]
+    Auth[Auth & RBAC]
+    Services[Business Services]
+  end
+
+  subgraph Data[Data Layer]
+    DB[(MongoDB)]
+  end
+
+  subgraph Chain[Aptos Blockchain]
+    SC1[[Fundraiser Contract]]
+    SC2[[Health Records/Access Contract]]
+  end
+
+  subgraph AI[AI Services]
+    Gemini[Google Gemini]
+  end
+
+  P --> UI
+  D --> UI
+  Don --> UI
+
+  UI -->|HTTPS| API
+  API --> Auth
+  Auth --> Services
+
+  Services -->|CRUD| DB
+  Services -->|on-chain tx| SC1
+  Services -->|on-chain tx| SC2
+  Services -->|prompt/response| Gemini
+
+  SC1 -->|events| API
+  SC2 -->|events| API
+

@@ -1,0 +1,21 @@
+%% MediChain – Request Flow (Mermaid Sequence)
+sequenceDiagram
+  autonumber
+  participant User as Patient/Doctor/Donor
+  participant UI as Next.js App
+  participant API as Node.js Backend
+  participant DB as MongoDB
+  participant AI as Gemini
+  participant Chain as Aptos Contracts
+
+  User->>UI: Submit action (e.g., create fundraiser)
+  UI->>API: POST /fundraisers (JWT)
+  API->>DB: Validate & persist draft
+  DB-->>API: OK
+  API->>AI: Analyze/score (optional)
+  AI-->>API: Insights
+  API->>Chain: Create on-chain campaign (SC1)
+  Chain-->>API: Tx hash / receipt
+  API-->>UI: 201 Created + campaign + tx
+  UI-->>User: Show verified on-chain fundraiser
+

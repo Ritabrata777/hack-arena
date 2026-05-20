@@ -1,0 +1,51 @@
+
+> medichain@1.0.0 dev
+> next dev --turbopack -p 9002
+
+   ▲ Next.js 15.3.3 (Turbopack)
+   - Local:        http://localhost:9002
+   - Network:      http://192.168.1.41:9002
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\LENOVO\\Downloads\\MediChain-main\\MediChain-main',
+  testMode: true
+}
+ ✓ Ready in 1886ms
+ ○ Compiling / ...
+ ✓ Compiled / in 4.3s
+ GET / 200 in 5133ms
+ GET / 200 in 309ms
+ ○ Compiling /favicon.ico ...
+ ✓ Compiled /favicon.ico in 988ms
+ GET /favicon.ico?favicon.b3a6fb4d.ico 200 in 1395ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 1181ms
+ GET /dashboard 200 in 1308ms
+ GET /dashboard 200 in 168ms
+ ○ Compiling /dashboard/admin ...
+ ✓ Compiled /dashboard/admin in 5.6s
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 1868ms
+ GET /dashboard/admin 500 in 9839ms
+ GET /dashboard/admin 500 in 299ms
+ GET /favicon.ico 200 in 382ms
+   Reload env: .env.local
+[MongoDB] dev options: {
+  tls: true,
+  allowInsecureTls: true,
+  forceIpv4: true,
+  directConnection: false,
+  minVersion: 'n/a'
+}
+ GET /dashboard/admin 200 in 1867ms
+ GET /favicon.ico?favicon.b3a6fb4d.ico 200 in 437ms
+ GET /favicon.ico?favicon.b3a6fb4d.ico 200 in 379ms
+ POST /dashboard/admin 200 in 257ms
+ POST /dashboard/admin 200 in 216ms
+ POST /dashboard/admin 200 in 207ms
+ POST /dashboard/admin 200 in 206ms
+ GET /dashboard 200 in 320ms
+ GET / 200 in 536ms
+[?25h

@@ -1,0 +1,87 @@
+
+> medichain@1.0.0 dev
+> next dev --turbopack -p 9002
+
+   ▲ Next.js 15.5.18 (Turbopack)
+   - Local:        http://localhost:9002
+   - Network:      http://192.168.1.41:9002
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\LENOVO\\Downloads\\MediChain-main\\MediChain-main',
+  testMode: true
+}
+ ✓ Ready in 1997ms
+ ○ Compiling / ...
+ ✓ Compiled / in 5.7s
+ GET / 200 in 6622ms
+ ✓ Compiled /dashboard in 473ms
+ GET /dashboard 200 in 658ms
+ ○ Compiling /dashboard/admin ...
+ ✓ Compiled /dashboard/admin in 1655ms
+[MongoDB] dev options: {
+  tls: true,
+  allowInsecureTls: true,
+  forceIpv4: true,
+  directConnection: false,
+  minVersion: 'n/a'
+}
+ GET /dashboard/admin 200 in 3543ms
+ ○ Compiling /dashboard/doctor ...
+ ✓ Compiled /dashboard/doctor in 3.2s
+ GET /dashboard/doctor 200 in 3698ms
+ ○ Compiling /dashboard/patient ...
+ ✓ Compiled /dashboard/patient in 915ms
+ GET /dashboard/patient 200 in 1218ms
+ ○ Compiling /directory ...
+ ✓ Compiled /directory in 524ms
+ GET /directory 200 in 717ms
+ ○ Compiling /emergency-access ...
+ ✓ Compiled /emergency-access in 509ms
+ GET /emergency-access 200 in 697ms
+ ○ Compiling /fundraising ...
+ ✓ Compiled /fundraising in 721ms
+ GET /fundraising 200 in 963ms
+ ○ Compiling /test-wallet ...
+ ✓ Compiled /test-wallet in 516ms
+ GET /test-wallet 200 in 720ms
+ ✓ Compiled /api/db-check in 437ms
+[MongoDB] dev options: {
+  tls: true,
+  allowInsecureTls: true,
+  forceIpv4: true,
+  directConnection: false,
+  minVersion: 'n/a'
+}
+ GET /api/db-check 200 in 885ms
+ ✓ Compiled /api/ai-status in 245ms
+ GET /api/ai-status 200 in 584ms
+ GET / 200 in 413ms
+ ✓ Compiled /favicon.ico in 323ms
+ GET /favicon.ico?favicon.73923737.ico 200 in 719ms
+ GET /directory 200 in 213ms
+ POST /directory 200 in 245ms
+ POST /directory 200 in 220ms
+ GET /fundraising 200 in 231ms
+ POST /fundraising 200 in 292ms
+ POST /fundraising 200 in 249ms
+ POST /fundraising 200 in 252ms
+ POST /fundraising 200 in 308ms
+ POST /fundraising 200 in 250ms
+ POST /fundraising 200 in 248ms
+ GET /dashboard/doctor 200 in 240ms
+ POST /dashboard/doctor 200 in 260ms
+ POST /dashboard/doctor 200 in 259ms
+ POST /dashboard/doctor 200 in 330ms
+ POST /dashboard/doctor 200 in 256ms
+ POST /dashboard/doctor 200 in 251ms
+ POST /dashboard/doctor 200 in 280ms
+ POST /dashboard/doctor 200 in 261ms
+ POST /dashboard/doctor 200 in 280ms
+ POST /dashboard/doctor 200 in 259ms
+ POST /dashboard/doctor 200 in 263ms
+ POST /dashboard/doctor 200 in 270ms
+ POST /dashboard/doctor 200 in 251ms

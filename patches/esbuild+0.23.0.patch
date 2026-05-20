@@ -1,0 +1,13 @@
+diff --git a/node_modules/esbuild/install.js b/node_modules/esbuild/install.js
+index a1a8996..9389363 100644
+--- a/node_modules/esbuild/install.js
++++ b/node_modules/esbuild/install.js
+@@ -282,7 +282,7 @@
+ // Once we have a valid package, we need to validate that the binary is working
+ // for the current platform. This is the last step. If we don't do this, it's
+ // possible to install a package on one platform and then move it to another
+-// one and the bundled binary will be for the wrong platform.
++// one and the bundled binary will be for the wrong platform. This is now disabled.
+ if (isMainThread) {
+   validateBinaryVersion(ESBUILD_BINARY_PATH);
+ }

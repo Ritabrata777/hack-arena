@@ -1,0 +1,54 @@
+ ⨯ Error: Invalid/Missing environment variable: "MONGODB_URI". Please add your MongoDB connection string to your .env file.
+    at [project]/src/backend/lib/mongodb.js [app-rsc] (ecmascript) (src\backend\lib\mongodb.js:14:8)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at getOrInstantiateModuleFromParent (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:653:12)
+    at esmImport (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:132:20)
+    at [project]/src/backend/services/mongodb.js [app-rsc] (ecmascript) (src\backend\services\mongodb.js:4:0)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at getOrInstantiateModuleFromParent (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:653:12)
+    at esmImport (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:132:20)
+    at [project]/.next-internal/server/app/dashboard/admin/page/actions.js { ACTIONS_MODULE0 => "[project]/src/backend/ai/flows/detect-anomalies.ts [app-rsc] (ecmascript)", ACTIONS_MODULE1 => "[project]/src/backend/services/mongodb.js [app-rsc] (ecmascript)" } [app-rsc] (server actions loader, ecmascript) <module evaluation> (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[root-of-the-server]__4e5c44c4._.js:1490:163)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at getOrInstantiateModuleFromParent (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:653:12)
+    at esmImport (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:132:20)
+    at [project]/.next-internal/server/app/dashboard/admin/page/actions.js { ACTIONS_MODULE0 => "[project]/src/backend/ai/flows/detect-anomalies.ts [app-rsc] (ecmascript)", ACTIONS_MODULE1 => "[project]/src/backend/services/mongodb.js [app-rsc] (ecmascript)" } [app-rsc] (server actions loader, ecmascript) (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[root-of-the-server]__4e5c44c4._.js:1529:550)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at instantiateRuntimeModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:661:12)
+    at Object.getOrInstantiateRuntimeModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:677:12)
+    at Object.<anonymous> (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\app\dashboard\admin\page.js:29:9)
+  12 |
+  13 | if (!uri || uri.trim() === '') {
+> 14 |   throw new Error('Invalid/Missing environment variable: "MONGODB_URI". Please add your MongoDB connection string to your .env file.')
+     |        ^
+  15 | }
+  16 |
+  17 | if (uri.includes('<') || uri.includes('>')) { {
+  page: '/dashboard/admin'
+}
+ ⨯ Error: Invalid/Missing environment variable: "MONGODB_URI". Please add your MongoDB connection string to your .env file.
+    at [project]/src/backend/lib/mongodb.js [app-rsc] (ecmascript) (src\backend\lib\mongodb.js:14:8)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at getOrInstantiateModuleFromParent (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:653:12)
+    at esmImport (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:132:20)
+    at [project]/src/backend/services/mongodb.js [app-rsc] (ecmascript) (src\backend\services\mongodb.js:4:0)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at getOrInstantiateModuleFromParent (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:653:12)
+    at esmImport (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:132:20)
+    at [project]/.next-internal/server/app/dashboard/admin/page/actions.js { ACTIONS_MODULE0 => "[project]/src/backend/ai/flows/detect-anomalies.ts [app-rsc] (ecmascript)", ACTIONS_MODULE1 => "[project]/src/backend/services/mongodb.js [app-rsc] (ecmascript)" } [app-rsc] (server actions loader, ecmascript) <module evaluation> (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[root-of-the-server]__4e5c44c4._.js:1490:163)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at getOrInstantiateModuleFromParent (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:653:12)
+    at esmImport (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:132:20)
+    at [project]/.next-internal/server/app/dashboard/admin/page/actions.js { ACTIONS_MODULE0 => "[project]/src/backend/ai/flows/detect-anomalies.ts [app-rsc] (ecmascript)", ACTIONS_MODULE1 => "[project]/src/backend/services/mongodb.js [app-rsc] (ecmascript)" } [app-rsc] (server actions loader, ecmascript) (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[root-of-the-server]__4e5c44c4._.js:1529:550)
+    at instantiateModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:594:23)
+    at instantiateRuntimeModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:661:12)
+    at Object.getOrInstantiateRuntimeModule (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\chunks\ssr\[turbopack]_runtime.js:677:12)
+    at Object.<anonymous> (C:\Users\LENOVO\Downloads\MediChain-main\MediChain-main\.next\server\app\dashboard\admin\page.js:29:9)
+  12 |
+  13 | if (!uri || uri.trim() === '') {
+> 14 |   throw new Error('Invalid/Missing environment variable: "MONGODB_URI". Please add your MongoDB connection string to your .env file.')
+     |        ^
+  15 | }
+  16 |
+  17 | if (uri.includes('<') || uri.includes('>')) { {
+  page: '/dashboard/admin'
+}
