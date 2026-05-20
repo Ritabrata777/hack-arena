@@ -8,8 +8,9 @@ import { Label } from '@/frontend/components/ui/label';
 import { useToast } from '@/frontend/hooks/use-toast';
 import { getEmergencyVaultData } from '@/backend/services/mongodb';
 import { decryptData } from '@/backend/lib/crypto';
-import { Loader2, KeyRound, User, FileText, Download } from 'lucide-react';
+import { Loader2, KeyRound, User, FileText, Download, HeartPulse } from 'lucide-react';
 import { ScrollArea } from '@/frontend/components/ui/scroll-area';
+import { Badge } from '@/frontend/components/ui/badge';
 import Image from 'next/image';
 
 const EmergencyAccessPage = () => {
@@ -30,11 +31,20 @@ const EmergencyAccessPage = () => {
         try {
             const data = await getEmergencyVaultData(accessCode);
             if (data && data.patientProfile) {
-                // Decrypt documents
-                const decryptedDocuments = (data.patientProfile.healthDocuments || []).map(doc => ({
-                    ...doc,
-                    decryptedUri: decryptData(doc.encryptedUri),
-                }));
+                const decryptedDocuments = (data.healthDocuments || []).map(doc => {
+                    try {
+                        return {
+                            ...doc,
+                            decryptedUri: decryptData(doc.encryptedUri),
+                        };
+                    } catch (error) {
+                        return {
+                            ...doc,
+                            decryptedUri: null,
+                            error: 'Unable to decrypt document',
+                        };
+                    }
+                });
 
                 setVaultData({
                     patientProfile: data.patientProfile,
@@ -87,30 +97,50 @@ const EmergencyAccessPage = () => {
                             </div>
                         </div>
 
-                        <h4 className="font-semibold mt-4">Uploaded Health Documents:</h4>
+                        <div className="w-full rounded-lg border p-4 bg-muted/30">
+                            <div className="flex items-center gap-2 mb-3">
+                                <HeartPulse className="h-5 w-5 text-destructive" />
+                                <h4 className="font-semibold">Critical Medical Summary</h4>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                                <SummaryItem label="Blood Group" value={vaultData.patientProfile.emergencySummary?.bloodGroup} />
+                                <SummaryItem label="Emergency Contact" value={vaultData.patientProfile.emergencySummary?.emergencyContact} />
+                                <SummaryItem label="Allergies" value={vaultData.patientProfile.emergencySummary?.allergies} />
+                                <SummaryItem label="Active Medicines" value={vaultData.patientProfile.emergencySummary?.activeMedicines} />
+                                <SummaryItem label="Known Conditions" value={vaultData.patientProfile.emergencySummary?.conditions} />
+                                <SummaryItem label="Notes" value={vaultData.patientProfile.emergencySummary?.notes} />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-4">
+                            <h4 className="font-semibold">Critical Documents</h4>
+                            <Badge variant="secondary">Emergency only</Badge>
+                        </div>
                         <ScrollArea className="h-64 w-full rounded-md border p-4">
                             {vaultData.healthDocuments.length > 0 ? (
                                 <div className="space-y-4">
                                 {vaultData.healthDocuments.map((doc, index) => (
                                     <div key={index} className="flex items-center justify-between bg-muted/50 p-3 rounded-md">
                                         <div className="flex items-center gap-3">
-                                            {doc.decryptedUri.startsWith('data:image') ?
+                                            {doc.decryptedUri?.startsWith('data:image') ?
                                                 <Image src={doc.decryptedUri} alt={doc.name} width={40} height={40} className="rounded object-cover" /> :
                                                 <FileText className="h-8 w-8 text-muted-foreground flex-shrink-0" />
                                             }
                                             <div>
                                                 <p className="font-medium text-sm">{doc.name}</p>
-                                                <p className="text-xs text-muted-foreground">{doc.category || 'Document'}</p>
+                                                <p className="text-xs text-muted-foreground">{doc.error || doc.category || 'Document'}</p>
                                             </div>
                                         </div>
-                                         <a href={doc.decryptedUri} download={doc.name} target="_blank" rel="noopener noreferrer">
-                                            <Button variant="outline" size="sm"><Download className="mr-2"/>View/Download</Button>
-                                        </a>
+                                        {doc.decryptedUri && (
+                                            <a href={doc.decryptedUri} download={doc.name} target="_blank" rel="noopener noreferrer">
+                                                <Button variant="outline" size="sm"><Download className="mr-2"/>View/Download</Button>
+                                            </a>
+                                        )}
                                     </div>
                                 ))}
                                 </div>
                             ) : (
-                                <p className="text-muted-foreground text-center py-8">No documents found in the vault.</p>
+                                <p className="text-muted-foreground text-center py-8">No critical documents are marked for emergency access.</p>
                             )}
                         </ScrollArea>
                     </CardFooter>
@@ -119,5 +149,12 @@ const EmergencyAccessPage = () => {
         </div>
     );
 };
+
+const SummaryItem = ({ label, value }) => (
+    <div className="rounded-md bg-background p-3">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className="font-medium whitespace-pre-wrap">{value || 'Not provided'}</p>
+    </div>
+);
 
 export default EmergencyAccessPage;

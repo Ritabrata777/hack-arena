@@ -6,12 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/fro
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
 import { Badge } from '@/frontend/components/ui/badge';
+import { Label } from '@/frontend/components/ui/label';
+import { Textarea } from '@/frontend/components/ui/textarea';
 import {
     FileText, Loader2, Send, Clock, CheckCircle, XCircle, Eye,
-    RefreshCw, Search, Filter, ArrowLeft, ShieldCheck, Download
+    RefreshCw, Search, Filter, ArrowLeft, ShieldCheck
 } from 'lucide-react';
 import { useToast } from "@/frontend/hooks/use-toast";
-import { getAccessRequestsByDoctor, createAccessRequest, getPatientProfile } from '@/backend/services/mongodb';
+import { getAccessRequestsByDoctor, createAccessRequest, getPatientProfile, addAuditLog } from '@/backend/services/mongodb';
 import { canDoctorAccessRecord } from '@/frontend/lib/blockchain';
 import {
     Tooltip,
@@ -24,6 +26,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 const SharedDocuments = ({ activeWallet }) => {
     const { toast } = useToast();
     const [patientWallet, setPatientWallet] = useState('');
+    const [accessReason, setAccessReason] = useState('');
+    const [requestedDurationHours, setRequestedDurationHours] = useState(24);
     const [isRequesting, setIsRequesting] = useState(false);
     const [accessRequests, setAccessRequests] = useState([]);
     const [isLoadingRequests, setIsLoadingRequests] = useState(false);
@@ -125,6 +129,10 @@ const SharedDocuments = ({ activeWallet }) => {
             toast({ variant: 'destructive', title: 'Error', description: 'Please enter a patient wallet address.' });
             return;
         }
+        if (!accessReason.trim()) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Please enter why you need access.' });
+            return;
+        }
         if (!activeWallet) {
             toast({ variant: 'destructive', title: 'Error', description: 'Wallet not connected.' });
             return;
@@ -136,10 +144,13 @@ const SharedDocuments = ({ activeWallet }) => {
                 doctorId: activeWallet,
                 patientId: patientWallet.trim(),
                 documentIds: [],
-                durationHours: 24
+                durationHours: requestedDurationHours,
+                reason: accessReason.trim()
             });
             setAccessRequests(prev => [request, ...prev]);
             setPatientWallet('');
+            setAccessReason('');
+            setRequestedDurationHours(24);
             toast({ title: 'Request Sent', description: 'Access request sent to patient. Waiting for approval...' });
         } catch (error) {
             console.error('Error creating access request:', error);
@@ -238,7 +249,49 @@ const SharedDocuments = ({ activeWallet }) => {
             }
 
             if (!doc.dataUri) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Document data is missing.' });
+                await addAuditLog({
+                    actor: activeWallet,
+                    subject: selectedPatient.id,
+                    action: 'record.view',
+                    details: {
+                        doctorId: activeWallet,
+                        requestId: selectedPatient.requestId,
+                        documentId: doc.id,
+                        documentName: doc.name,
+                        reason: activeGrant?.reason || 'Clinical review',
+                        metadataOnly: true
+                    }
+                });
+
+                const newWindow = window.open('', '_blank');
+                if (newWindow) {
+                    newWindow.document.write(`
+                        <html>
+                            <head>
+                                <title>${escapeHtml(doc.name)} - Metadata</title>
+                                <style>
+                                    body { margin: 0; padding: 32px; font-family: sans-serif; background: #f8fafc; color: #0f172a; }
+                                    main { max-width: 720px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; }
+                                    dl { display: grid; grid-template-columns: 160px 1fr; gap: 12px; }
+                                    dt { color: #64748b; font-weight: 600; }
+                                    dd { margin: 0; }
+                                </style>
+                            </head>
+                            <body>
+                                <main>
+                                    <h1>${escapeHtml(doc.name)}</h1>
+                                    <dl>
+                                        <dt>Category</dt><dd>${escapeHtml(doc.category || 'Record')}</dd>
+                                        <dt>Record date</dt><dd>${escapeHtml(doc.metadata?.recordDate || 'Not specified')}</dd>
+                                        <dt>Notes</dt><dd>${escapeHtml(doc.metadata?.notes || 'No notes added')}</dd>
+                                        <dt>Access reason</dt><dd>${escapeHtml(activeGrant?.reason || 'Clinical review')}</dd>
+                                    </dl>
+                                </main>
+                            </body>
+                        </html>
+                    `);
+                    newWindow.document.close();
+                }
                 return;
             }
 
@@ -255,12 +308,24 @@ const SharedDocuments = ({ activeWallet }) => {
             const newWindow = window.open('', '_blank');
             if (newWindow) {
                 const expiryTime = activeGrant ? activeGrant.expiresAt : Date.now() + 3600000;
+                await addAuditLog({
+                    actor: activeWallet,
+                    subject: selectedPatient.id,
+                    action: 'record.view',
+                    details: {
+                        doctorId: activeWallet,
+                        requestId: selectedPatient.requestId,
+                        documentId: doc.id,
+                        documentName: doc.name,
+                        reason: activeGrant?.reason || 'Clinical review'
+                    }
+                });
 
                 // Write secure viewer HTML
                 newWindow.document.write(`
                     <html>
                         <head>
-                            <title>${doc.name} - Secure View</title>
+                            <title>${escapeHtml(doc.name)} - Secure View</title>
                             <style>
                                 body { margin: 0; padding: 0; font-family: sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
                                 .header { background: #0f172a; padding: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
@@ -295,8 +360,8 @@ const SharedDocuments = ({ activeWallet }) => {
                              <div class="expiry-banner" id="timer">Calculating session time...</div>
                             <div class="header">
                                 <div>
-                                    <strong>${doc.name}</strong>
-                                    <span style="opacity:0.7; font-size:0.8rem; margin-left:10px;">${doc.category}</span>
+                                    <strong>${escapeHtml(doc.name)}</strong>
+                                    <span style="opacity:0.7; font-size:0.8rem; margin-left:10px;">${escapeHtml(doc.category)}</span>
                                 </div>
                                 <div style="background:#2563eb; padding:4px 8px; border-radius:4px; font-size:0.75rem;">SECURE MODE</div>
                             </div>
@@ -304,7 +369,7 @@ const SharedDocuments = ({ activeWallet }) => {
                                 <div class="watermark">CONFIDENTIAL</div>
                                 ${doc.name.toLowerCase().endsWith('.pdf')
                         ? `<iframe src="${dataUrl}#toolbar=0" style="width:100%;height:100%;border:none;"></iframe>`
-                        : `<img src="${dataUrl}" />`
+                        : `<img src="${dataUrl}" alt="${escapeHtml(doc.name)}" />`
                     }
                             </div>
                         </body>
@@ -327,6 +392,7 @@ const SharedDocuments = ({ activeWallet }) => {
         switch (status) {
             case 'approved': return <CheckCircle className="h-4 w-4 text-green-500" />;
             case 'denied': return <XCircle className="h-4 w-4 text-red-500" />;
+            case 'revoked': return <XCircle className="h-4 w-4 text-orange-500" />;
             default: return <Clock className="h-4 w-4 text-yellow-500" />;
         }
     };
@@ -335,11 +401,20 @@ const SharedDocuments = ({ activeWallet }) => {
         switch (status) {
             case 'approved': return 'secondary';
             case 'denied': return 'destructive';
+            case 'revoked': return 'outline';
             default: return 'default';
         }
     };
 
     const formatWalletAddress = (address) => activeWallet && address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Unknown';
+    const formatDuration = (hours) => Number(hours) === 168 ? '7 days' : `${Number(hours) || 24} hours`;
+    const escapeHtml = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
 
 
     // --- RENDER ---
@@ -360,6 +435,9 @@ const SharedDocuments = ({ activeWallet }) => {
                             <span>•</span>
                             <span>Expires: {activeGrant?.expiresAt ? new Date(activeGrant.expiresAt).toLocaleTimeString() : 'Unknown'}</span>
                         </div>
+                        {activeGrant?.reason && (
+                            <p className="text-sm text-muted-foreground mt-1">Reason: {activeGrant.reason}</p>
+                        )}
                     </div>
                 </div>
 
@@ -409,7 +487,7 @@ const SharedDocuments = ({ activeWallet }) => {
                                         <p className="text-xs text-muted-foreground mt-1 mb-2 capitalize">{doc.category}</p>
                                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                                             <span>{new Date(doc.uploadedAt).toLocaleDateString()}</span>
-                                            <span>{(doc.size / 1024 / 1024).toFixed(2)} MB</span>
+                                            <span>{doc.size ? `${(doc.size / 1024 / 1024).toFixed(2)} MB` : 'Metadata'}</span>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -497,6 +575,14 @@ const SharedDocuments = ({ activeWallet }) => {
                                                         <p className="text-sm text-muted-foreground font-mono truncate" title={request.patientId}>
                                                             {formatWalletAddress(request.patientId)}
                                                         </p>
+                                                        {request.reason && (
+                                                            <p className="text-xs text-muted-foreground line-clamp-2">
+                                                                Reason: {request.reason}
+                                                            </p>
+                                                        )}
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Requested duration: {formatDuration(request.durationHours)}
+                                                        </p>
                                                     </div>
 
                                                     {/* Action button */}
@@ -529,6 +615,11 @@ const SharedDocuments = ({ activeWallet }) => {
                                                             Denied
                                                         </div>
                                                     )}
+                                                    {request.status === 'revoked' && (
+                                                        <div className="text-xs text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/20 px-2 py-1 rounded mt-2">
+                                                            Revoked by patient
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </CardContent>
                                         </Card>
@@ -553,9 +644,9 @@ const SharedDocuments = ({ activeWallet }) => {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                <Label>
                                     Patient Wallet Address
-                                </label>
+                                </Label>
                                 <Input
                                     placeholder="0x..."
                                     value={patientWallet}
@@ -566,9 +657,33 @@ const SharedDocuments = ({ activeWallet }) => {
                                     Ask the patient for their connected wallet address.
                                 </p>
                             </div>
+                            <div className="space-y-2">
+                                <Label>Why do you need access?</Label>
+                                <Textarea
+                                    value={accessReason}
+                                    onChange={(e) => setAccessReason(e.target.value)}
+                                    placeholder="Clinical review, follow-up appointment, medication reconciliation..."
+                                    rows={3}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Requested Duration</Label>
+                                <Select
+                                    value={String(requestedDurationHours)}
+                                    onValueChange={(value) => setRequestedDurationHours(Number(value))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select duration" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="24">24 hours</SelectItem>
+                                        <SelectItem value="168">7 days</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                             <Button
                                 onClick={handleRequestAccess}
-                                disabled={!patientWallet.trim() || isRequesting}
+                                disabled={!patientWallet.trim() || !accessReason.trim() || isRequesting}
                                 className="w-full"
                             >
                                 {isRequesting ? (
@@ -587,4 +702,3 @@ const SharedDocuments = ({ activeWallet }) => {
 };
 
 export default SharedDocuments;
-

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/frontend/components/ui/card';
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
+import { Textarea } from '@/frontend/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/frontend/components/ui/select';
 import { Label } from '@/frontend/components/ui/label';
 import { Badge } from '@/frontend/components/ui/badge';
@@ -17,7 +18,6 @@ import {
     uploadHealthRecord,
     approveDoctorForRecord,
     revokeDoctorForRecord,
-    canDoctorAccessRecord,
     createHash
 } from '@/frontend/lib/blockchain';
 import { v4 as uuidv4 } from 'uuid';
@@ -30,6 +30,9 @@ const ConsentManager = ({ activeWallet }) => {
     const [auditLogs, setAuditLogs] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
+    const [recordTitle, setRecordTitle] = useState('');
+    const [recordNotes, setRecordNotes] = useState('');
+    const [recordDate, setRecordDate] = useState('');
     const [documentCategory, setDocumentCategory] = useState('');
     const [selectedDocumentsForApproval, setSelectedDocumentsForApproval] = useState([]);
     const [approvalDuration, setApprovalDuration] = useState(24);
@@ -68,6 +71,7 @@ const ConsentManager = ({ activeWallet }) => {
                     patientId: req.patientId,
                     documentIds: req.documentIds || [],
                     durationHours: req.durationHours,
+                    reason: req.reason || '',
                     status: req.status,
                     requestDate: req.requestDate
                 }));
@@ -89,87 +93,98 @@ const ConsentManager = ({ activeWallet }) => {
         loadAllData();
     }, [activeWallet, toast]);
 
+    const readFileAsDataUri = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
     const handleFileUpload = async () => {
-        if (!selectedFile || !documentCategory) {
+        if (!documentCategory || (!selectedFile && !recordTitle.trim())) {
             toast({
                 variant: 'destructive',
                 title: 'Error',
-                description: 'Please select a file and category.'
+                description: 'Please add a record title or select a file, then choose a category.'
             });
             return;
         }
 
         setIsUploading(true);
         try {
-            // Convert file to base64
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                const dataUri = e.target.result;
+            const dataUri = selectedFile ? await readFileAsDataUri(selectedFile) : null;
+            const metadata = {
+                title: recordTitle.trim() || selectedFile?.name || 'Untitled record',
+                notes: recordNotes.trim(),
+                recordDate: recordDate || new Date().toISOString().slice(0, 10),
+            };
 
-                // Create a hash for the file content (simulating IPFS hash)
-                const fileHash = await createHash(dataUri);
+            const fileHash = await createHash(dataUri || JSON.stringify(metadata));
+            const newDocument = {
+                id: uuidv4(),
+                name: metadata.title,
+                category: documentCategory,
+                metadata,
+                dataUri,
+                ipfsHash: fileHash,
+                uploadedAt: new Date().toISOString(),
+                size: selectedFile?.size || 0,
+                type: selectedFile?.type || 'metadata'
+            };
 
-                const newDocument = {
-                    id: uuidv4(),
-                    name: selectedFile.name,
-                    category: documentCategory,
-                    dataUri: dataUri,
-                    ipfsHash: fileHash, // Store the hash for blockchain
-                    uploadedAt: new Date().toISOString(),
-                    size: selectedFile.size,
-                    type: selectedFile.type
-                };
-
-                // Upload to blockchain first
-                try {
-                    const blockchainResult = await uploadHealthRecord(fileHash);
-                    newDocument.blockchainRecordId = blockchainResult.recordId;
-                    newDocument.txHash = blockchainResult.txHash;
-
-                    toast({
-                        title: 'Blockchain Success',
-                        description: `Record uploaded to blockchain. TX: ${blockchainResult.txHash.slice(0, 10)}...`
-                    });
-                } catch (blockchainError) {
-                    console.warn('Blockchain upload failed, continuing with local storage:', blockchainError);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Blockchain Warning',
-                        description: 'Failed to upload to blockchain, but saved locally.'
-                    });
-                }
-
-                // Update patient profile
-                const profile = await getPatientProfile(activeWallet);
-                const updatedDocuments = [...(profile?.consentDocuments || []), newDocument];
-                await updatePatientProfile(activeWallet, {
-                    ...profile,
-                    consentDocuments: updatedDocuments
-                });
-
-                setDocuments(updatedDocuments);
-                setSelectedFile(null);
-                setDocumentCategory('');
-
-                // Add audit log
-                await addAuditLog({
-                    actor: activeWallet,
-                    subject: activeWallet,
-                    action: 'record.upload',
-                    details: {
-                        documentId: newDocument.id,
-                        fileName: newDocument.name,
-                        blockchainRecordId: newDocument.blockchainRecordId,
-                        txHash: newDocument.txHash
-                    }
-                });
+            try {
+                const blockchainResult = await uploadHealthRecord(fileHash);
+                newDocument.blockchainRecordId = blockchainResult.recordId;
+                newDocument.txHash = blockchainResult.txHash;
 
                 toast({
-                    title: 'Success',
-                    description: 'Document uploaded successfully.'
+                    title: 'Blockchain Success',
+                    description: `Record registered on blockchain. TX: ${blockchainResult.txHash.slice(0, 10)}...`
                 });
-            };
-            reader.readAsDataURL(selectedFile);
+            } catch (blockchainError) {
+                console.warn('Blockchain upload failed, continuing with local storage:', blockchainError);
+                toast({
+                    variant: 'destructive',
+                    title: 'Blockchain Warning',
+                    description: 'Record saved locally, but blockchain registration failed.'
+                });
+            }
+
+            const profile = await getPatientProfile(activeWallet);
+            const updatedDocuments = [...(profile?.consentDocuments || []), newDocument];
+            await updatePatientProfile(activeWallet, {
+                ...profile,
+                consentDocuments: updatedDocuments
+            });
+
+            setDocuments(updatedDocuments);
+            setSelectedFile(null);
+            setRecordTitle('');
+            setRecordNotes('');
+            setRecordDate('');
+            setDocumentCategory('');
+
+            await addAuditLog({
+                actor: activeWallet,
+                subject: activeWallet,
+                action: 'record.upload',
+                details: {
+                    documentId: newDocument.id,
+                    fileName: newDocument.name,
+                    category: newDocument.category,
+                    metadataOnly: !dataUri,
+                    blockchainRecordId: newDocument.blockchainRecordId,
+                    txHash: newDocument.txHash
+                }
+            });
+
+            const updatedLogs = await getAuditLogsForPatient(activeWallet);
+            setAuditLogs(updatedLogs || []);
+
+            toast({
+                title: 'Success',
+                description: dataUri ? 'Document uploaded successfully.' : 'Record metadata saved successfully.'
+            });
         } catch (error) {
             console.error('Error uploading file:', error);
             toast({
@@ -240,6 +255,8 @@ const ConsentManager = ({ activeWallet }) => {
                 grantedAt: Date.now(),
                 expiresAt: Date.now() + (approvalDuration * 60 * 60 * 1000),
                 documentIds: selectedDocumentsForApproval,
+                durationHours: approvalDuration,
+                reason: request.reason || '',
                 blockchainResults: blockchainResults,
                 requestId: requestId
             };
@@ -256,6 +273,7 @@ const ConsentManager = ({ activeWallet }) => {
                 doctorId: request?.doctorId,
                 documentIds: selectedDocumentsForApproval,
                 durationHours: approvalDuration,
+                reason: request?.reason || '',
                 transactions: blockchainResults.map(result => ({
                     documentId: result.documentId,
                     txHash: result.txHash,
@@ -284,7 +302,7 @@ const ConsentManager = ({ activeWallet }) => {
 
             toast({
                 title: 'Approved',
-                description: `Access granted for ${selectedDocumentsForApproval.length} document(s) for ${approvalDuration} hours. ${successCount}/${totalCount} documents approved on blockchain.`
+                description: `Access granted for ${selectedDocumentsForApproval.length} document(s) for ${formatDuration(approvalDuration)}. ${successCount}/${totalCount} documents approved on blockchain.`
             });
         } catch (error) {
             console.error('Error approving request:', error);
@@ -298,6 +316,7 @@ const ConsentManager = ({ activeWallet }) => {
 
     const handleDenyRequest = async (requestId) => {
         try {
+            const request = accessRequests.find(req => req.id === requestId);
             await updateAccessRequestStatus(requestId, 'denied');
             setAccessRequests(prev =>
                 prev.map(req => req.id === requestId ? { ...req, status: 'denied' } : req)
@@ -307,8 +326,15 @@ const ConsentManager = ({ activeWallet }) => {
                 actor: activeWallet,
                 subject: activeWallet,
                 action: 'access.deny',
-                details: { requestId }
+                details: {
+                    requestId,
+                    doctorId: request?.doctorId,
+                    reason: request?.reason || ''
+                }
             });
+
+            const updatedLogs = await getAuditLogsForPatient(activeWallet);
+            setAuditLogs(updatedLogs || []);
 
             toast({ title: 'Denied', description: 'Access request denied.' });
         } catch (error) {
@@ -353,17 +379,28 @@ const ConsentManager = ({ activeWallet }) => {
             }
 
             const profile = await getPatientProfile(activeWallet);
-            const updatedPermissions = profile?.consents?.filter((_, index) => index !== permissionIndex) || [];
+            const updatedPermissions = (profile?.consents || []).filter((p, index) =>
+                permission.requestId ? p.requestId !== permission.requestId : index !== permissionIndex
+            );
 
             await updatePatientProfile(activeWallet, {
                 ...profile,
                 consents: updatedPermissions
             });
             setActivePermissions(updatedPermissions);
+            if (permission.requestId) {
+                await updateAccessRequestStatus(permission.requestId, 'revoked');
+                setAccessRequests(prev =>
+                    prev.map(req => req.id === permission.requestId ? { ...req, status: 'revoked' } : req)
+                );
+            }
 
             const auditDetails = {
                 doctorId: permission.address,
+                requestId: permission.requestId,
                 documentIds: permission.documentIds,
+                reason: permission.reason || '',
+                durationHours: permission.durationHours,
                 transactions: blockchainResults.map(result => ({
                     documentId: result.documentId,
                     txHash: result.txHash,
@@ -374,7 +411,7 @@ const ConsentManager = ({ activeWallet }) => {
 
             await addAuditLog({
                 actor: activeWallet,
-                subject: permission.address,
+                subject: activeWallet,
                 action: 'consent.revoked',
                 details: auditDetails,
                 timestamp: new Date().toISOString()
@@ -435,6 +472,8 @@ const ConsentManager = ({ activeWallet }) => {
         return `${address.slice(0, 6)}...${address.slice(-4)}`;
     };
 
+    const formatDuration = (hours) => Number(hours) === 168 ? '7 days' : `${Number(hours) || 24} hours`;
+
     const toggleDocumentSelection = (documentId) => {
         setSelectedDocumentsForApproval(prev =>
             prev.includes(documentId)
@@ -446,7 +485,7 @@ const ConsentManager = ({ activeWallet }) => {
     const startApprovalProcess = (request) => {
         setCurrentApprovalRequest(request);
         setSelectedDocumentsForApproval([]);
-        setApprovalDuration(24);
+        setApprovalDuration(Number(request.durationHours) || 24);
     };
 
     const cancelApprovalProcess = () => {
@@ -461,6 +500,8 @@ const ConsentManager = ({ activeWallet }) => {
                 return <CheckCircle className="h-4 w-4 text-green-500" />;
             case 'denied':
                 return <XCircle className="h-4 w-4 text-red-500" />;
+            case 'revoked':
+                return <XCircle className="h-4 w-4 text-orange-500" />;
             case 'pending':
             default:
                 return <Clock className="h-4 w-4 text-yellow-500" />;
@@ -490,11 +531,27 @@ const ConsentManager = ({ activeWallet }) => {
                             <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
+                                        <Label>Record Title</Label>
+                                        <Input
+                                            value={recordTitle}
+                                            onChange={(e) => setRecordTitle(e.target.value)}
+                                            placeholder="Blood panel, discharge summary, prescription..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label>Record Date</Label>
+                                        <Input
+                                            type="date"
+                                            value={recordDate}
+                                            onChange={(e) => setRecordDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
                                         <Label>Select File</Label>
                                         <Input
                                             type="file"
                                             accept=".png,.jpg,.jpeg,.pdf"
-                                            onChange={(e) => setSelectedFile(e.target.files[0])}
+                                            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                                         />
                                     </div>
                                     <div>
@@ -513,9 +570,18 @@ const ConsentManager = ({ activeWallet }) => {
                                         </Select>
                                     </div>
                                 </div>
+                                <div>
+                                    <Label>Notes</Label>
+                                    <Textarea
+                                        value={recordNotes}
+                                        onChange={(e) => setRecordNotes(e.target.value)}
+                                        placeholder="Optional diagnosis, facility, doctor, or other context"
+                                        rows={3}
+                                    />
+                                </div>
                                 <Button
                                     onClick={handleFileUpload}
-                                    disabled={!selectedFile || !documentCategory || isUploading}
+                                    disabled={(!selectedFile && !recordTitle.trim()) || !documentCategory || isUploading}
                                     className="w-full"
                                 >
                                     {isUploading ? (
@@ -542,6 +608,12 @@ const ConsentManager = ({ activeWallet }) => {
                                                         <FileText className="h-5 w-5 text-primary" />
                                                         <div>
                                                             <p className="font-medium text-sm">{doc.name}</p>
+                                                            {doc.metadata?.recordDate && (
+                                                                <p className="text-xs text-muted-foreground">Record date: {doc.metadata.recordDate}</p>
+                                                            )}
+                                                            {doc.metadata?.notes && (
+                                                                <p className="text-xs text-muted-foreground line-clamp-1">{doc.metadata.notes}</p>
+                                                            )}
                                                             <p className="text-sm text-muted-foreground">{doc.category} • {new Date(doc.uploadedAt).toLocaleDateString()}</p>
                                                         </div>
                                                     </div>
@@ -557,6 +629,9 @@ const ConsentManager = ({ activeWallet }) => {
                                                                         const newWindow = window.open('', '_blank');
                                                                         newWindow.document.write(`<html><head><title>${doc.name}</title></head><body style="margin:0; text-align:center; background:#f5f5f5;"><img src="${doc.dataUri}" style="max-width:100%; max-height:90vh;" alt="${doc.name}" /></body></html>`);
                                                                     }
+                                                                } else {
+                                                                    const newWindow = window.open('', '_blank');
+                                                                    newWindow.document.write(`<html><head><title>${doc.name}</title></head><body style="font-family:sans-serif;padding:32px"><h1>${doc.name}</h1><p><strong>Category:</strong> ${doc.category}</p><p><strong>Record date:</strong> ${doc.metadata?.recordDate || 'Not specified'}</p><p><strong>Notes:</strong> ${doc.metadata?.notes || 'No notes added'}</p></body></html>`);
                                                                 }
                                                             }}
                                                         >
@@ -566,6 +641,7 @@ const ConsentManager = ({ activeWallet }) => {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
+                                                            disabled={!doc.dataUri}
                                                             onClick={() => {
                                                                 if (doc.dataUri) {
                                                                     const link = document.createElement('a');
@@ -606,11 +682,11 @@ const ConsentManager = ({ activeWallet }) => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {accessRequests.filter(req => req.status === 'pending' || req.status === 'denied').length === 0 ? (
+                            {accessRequests.filter(req => ['pending', 'denied', 'revoked'].includes(req.status)).length === 0 ? (
                                 <p className="text-muted-foreground text-center py-4">No pending requests.</p>
                             ) : (
                                 <div className="space-y-4">
-                                    {accessRequests.filter(req => req.status === 'pending' || req.status === 'denied').map((request) => (
+                                    {accessRequests.filter(req => ['pending', 'denied', 'revoked'].includes(req.status)).map((request) => (
                                         <div key={request.id} className="p-4 bg-muted/30 rounded-lg">
                                             <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2">
@@ -625,6 +701,14 @@ const ConsentManager = ({ activeWallet }) => {
                                             </div>
                                             <p className="text-xs text-muted-foreground mb-3">
                                                 Requested: {new Date(request.requestDate).toLocaleString()}
+                                            </p>
+                                            {request.reason && (
+                                                <p className="text-xs text-muted-foreground mb-2">
+                                                    Reason: {request.reason}
+                                                </p>
+                                            )}
+                                            <p className="text-xs text-muted-foreground mb-3">
+                                                Doctor requested: {formatDuration(request.durationHours)}
                                             </p>
 
                                             {request.status === 'pending' && !currentApprovalRequest && (
@@ -650,6 +734,11 @@ const ConsentManager = ({ activeWallet }) => {
                                             {request.status === 'denied' && (
                                                 <div className="text-sm text-muted-foreground">
                                                     Access denied
+                                                </div>
+                                            )}
+                                            {request.status === 'revoked' && (
+                                                <div className="text-sm text-muted-foreground">
+                                                    Access revoked
                                                 </div>
                                             )}
 
@@ -680,18 +769,39 @@ const ConsentManager = ({ activeWallet }) => {
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label className="text-sm font-medium">Access duration (hours):</Label>
+                                                        <Label className="text-sm font-medium">Access duration:</Label>
                                                         <div className="flex items-center gap-2">
                                                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                                                            <Input
-                                                                type="number"
-                                                                min="1"
-                                                                max="168"
-                                                                value={approvalDuration}
-                                                                onChange={(e) => setApprovalDuration(parseInt(e.target.value) || 24)}
-                                                                className="w-20"
-                                                            />
-                                                            <span className="text-sm text-muted-foreground">hours</span>
+                                                            <Select
+                                                                value={approvalDuration === 24 || approvalDuration === 168 ? String(approvalDuration) : 'custom'}
+                                                                onValueChange={(value) => {
+                                                                    if (value === '24') setApprovalDuration(24);
+                                                                    if (value === '168') setApprovalDuration(168);
+                                                                    if (value === 'custom' && (approvalDuration === 24 || approvalDuration === 168)) setApprovalDuration(48);
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="w-36">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="24">24 hours</SelectItem>
+                                                                    <SelectItem value="168">7 days</SelectItem>
+                                                                    <SelectItem value="custom">Custom</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                            {approvalDuration !== 24 && approvalDuration !== 168 && (
+                                                                <>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        max="720"
+                                                                        value={approvalDuration}
+                                                                        onChange={(e) => setApprovalDuration(parseInt(e.target.value) || 24)}
+                                                                        className="w-20"
+                                                                    />
+                                                                    <span className="text-sm text-muted-foreground">hours</span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -739,11 +849,16 @@ const ConsentManager = ({ activeWallet }) => {
                                                 <div>
                                                     <p className="text-sm font-medium">Dr. {formatWalletAddress(permission.address)}</p>
                                                     <p className="text-muted-foreground text-xs">
-                                                        Expires: {permission.expiresAt ? new Date(permission.expiresAt).toLocaleDateString() : 'Never'}
+                                                        Expires: {permission.expiresAt ? new Date(permission.expiresAt).toLocaleString() : 'Never'}
                                                     </p>
                                                     <p className="text-muted-foreground text-xs">
                                                         Documents: {permission.documentIds?.length || 0}
                                                     </p>
+                                                    {permission.reason && (
+                                                        <p className="text-muted-foreground text-xs line-clamp-2">
+                                                            Reason: {permission.reason}
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <Button
                                                     size="sm"
@@ -788,12 +903,18 @@ const ConsentManager = ({ activeWallet }) => {
                                                         {log.action === 'consent.revoked' && <XCircle className="h-4 w-4 text-red-500" />}
                                                         {log.action === 'record.upload' && <Upload className="h-4 w-4 text-blue-500" />}
                                                         {log.action === 'record.delete' && <Trash2 className="h-4 w-4 text-orange-500" />}
+                                                        {log.action === 'record.view' && <Eye className="h-4 w-4 text-purple-500" />}
+                                                        {log.action === 'access.request' && <Clock className="h-4 w-4 text-yellow-500" />}
+                                                        {log.action === 'emergency.access' && <ShieldCheck className="h-4 w-4 text-red-500" />}
                                                         <span className="text-sm font-medium">
                                                             {log.action === 'access.approve' && 'Access Approved'}
                                                             {log.action === 'consent.revoked' && 'Access Revoked'}
                                                             {log.action === 'record.upload' && 'Record Uploaded'}
                                                             {log.action === 'record.delete' && 'Record Deleted'}
                                                             {log.action === 'access.deny' && 'Access Denied'}
+                                                            {log.action === 'record.view' && 'Record Viewed'}
+                                                            {log.action === 'access.request' && 'Access Requested'}
+                                                            {log.action === 'emergency.access' && 'Emergency Access Used'}
                                                         </span>
                                                     </div>
                                                     <span className="text-xs text-muted-foreground">
@@ -828,6 +949,18 @@ const ConsentManager = ({ activeWallet }) => {
                                                     </p>
                                                 )}
 
+                                                {log.action === 'record.view' && log.details?.documentName && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Viewed: {log.details.documentName}
+                                                    </p>
+                                                )}
+
+                                                {log.details?.reason && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Reason: {log.details.reason}
+                                                    </p>
+                                                )}
+
                                                 {log.details?.documentIds && log.details.documentIds.length > 0 && (
                                                     <p className="text-xs text-muted-foreground">
                                                         Documents: {log.details.documentIds.length}
@@ -853,4 +986,3 @@ const ConsentManager = ({ activeWallet }) => {
 };
 
 export default ConsentManager;
-

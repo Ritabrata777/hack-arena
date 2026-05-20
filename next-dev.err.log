@@ -1,0 +1,16 @@
+AI service error in anomaly detection: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent: [429 Too Many Requests] Quota exceeded for quota metric 'Generate Content API requests per minute' and limit 'GenerateContent request limit per minute for a region' of service 'generativelanguage.googleapis.com' for consumer 'project_number:706299618778'. [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"RATE_LIMIT_EXCEEDED","domain":"googleapis.com","metadata":{"quota_location":"asia-southeast1","consumer":"projects/706299618778","quota_metric":"generativelanguage.googleapis.com/generate_content_requests","quota_unit":"1/min/{project}/{region}","quota_limit_value":"0","quota_limit":"GenerateContentRequestsPerMinutePerProjectPerRegion","service":"generativelanguage.googleapis.com"}},{"@type":"type.googleapis.com/google.rpc.Help","links":[{"description":"Request a higher quota limit.","url":"https://cloud.google.com/docs/quotas/help/request_increase"}]}]
+    at async (src\backend\ai\flows\detect-anomalies.ts:149:22)
+    at async detectAnomalies (src\backend\ai\flows\detect-anomalies.ts:46:12)
+  147 |     const consultationsJson = JSON.stringify(consultationsWithHints, null, 2);
+  148 |
+> 149 |     const {output} = await anomalyDetectionPrompt({ consultationsJson });
+      |                      ^
+  150 |     return output!;
+  151 |   }
+  152 | ); {
+  status: 429,
+  statusText: 'Too Many Requests',
+  errorDetails: [Array],
+  traceId: 'cfea77b771671cedb5b43816cc96e010',
+  ignoreFailedSpan: true
+}

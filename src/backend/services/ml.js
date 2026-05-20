@@ -6,13 +6,6 @@ const path = require('path');
 const PYTHON_CMD = process.env.PYTHON_PATH || (process.platform === 'win32' ? 'python' : 'python3');
 
 /**
-const { spawn } = require('child_process');
-const path = require('path');
-
-// Determine Python executable (might need configuration in prod)
-const PYTHON_CMD = process.platform === 'win32' ? 'python' : 'python3';
-
-/**
  * Runs the training script.
  * @returns {Promise<string>} Output of the training script.
  */
@@ -34,8 +27,14 @@ export async function runTraining() {
 
         child.on('close', (code) => {
             if (code !== 0) {
-                // If python is missing, it might error here
-                reject(new Error(`Training failed with code ${code}: ${errorOutput}`));
+                const missingModule = errorOutput.match(/ModuleNotFoundError: No module named ['"]([^'"]+)['"]/);
+                if (missingModule) {
+                    reject(new Error(
+                        `Python dependency "${missingModule[1]}" is missing. Run: ${PYTHON_CMD} -m pip install -r src/ml_service/requirements.txt`
+                    ));
+                    return;
+                }
+                reject(new Error(`Training failed with code ${code}: ${errorOutput || output}`));
             } else {
                 resolve(output);
             }

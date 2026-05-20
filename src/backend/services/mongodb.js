@@ -218,7 +218,7 @@ export const getAllPatientProfiles = async () => {
 };
 
 // ===== Access Requests (Doctor <-> Patient) =====
-export const createAccessRequest = async ({ doctorId, patientId, documentIds = [], durationHours = 24 }) => {
+export const createAccessRequest = async ({ doctorId, patientId, documentIds = [], durationHours = 24, reason = '' }) => {
     const db = await getDb();
     const request = {
         id: uuidv4(),
@@ -226,10 +226,26 @@ export const createAccessRequest = async ({ doctorId, patientId, documentIds = [
         patientId: (patientId || '').toLowerCase(),
         documentIds,
         durationHours: Number(durationHours) || 24,
+        reason: reason.trim(),
         status: 'pending', // pending, approved, denied
         requestDate: new Date().toISOString(),
     };
     await db.collection('accessRequests').insertOne(request);
+
+    await db.collection('auditLogs').insertOne({
+        id: uuidv4(),
+        actor: request.doctorId,
+        action: 'access.request',
+        subject: request.patientId,
+        details: {
+            requestId: request.id,
+            doctorId: request.doctorId,
+            durationHours: request.durationHours,
+            reason: request.reason,
+        },
+        timestamp: request.requestDate,
+    });
+
     return serializeMongoObject(request);
 };
 
@@ -248,7 +264,10 @@ export const getAccessRequestsByPatient = async (patientId) => {
 
 export const updateAccessRequestStatus = async (requestId, status) => {
     const db = await getDb();
-    await db.collection('accessRequests').updateOne({ id: requestId }, { $set: { status } });
+    await db.collection('accessRequests').updateOne(
+        { id: requestId },
+        { $set: { status, updatedAt: new Date().toISOString() } }
+    );
 };
 
 // ===== Audit Logs =====
@@ -675,8 +694,39 @@ export const getEmergencyVaultData = async (accessCode) => {
     if (!patientProfile) {
         return null;
     }
-    
-    return { patientProfile: serializeMongoObject(patientProfile) };
+
+    const criticalCategories = new Set([
+        'Medical ID',
+        'Allergy List',
+        'Prescription',
+        'Emergency Contact',
+        'Vaccination',
+    ]);
+
+    const healthDocuments = (patientProfile.healthDocuments || []).filter((doc) =>
+        doc.emergencyVisible === true || criticalCategories.has(doc.category)
+    );
+
+    await db.collection('auditLogs').insertOne({
+        id: uuidv4(),
+        actor: 'emergency-code',
+        action: 'emergency.access',
+        subject: patientProfile.walletAddress,
+        details: {
+            code: accessCode.toUpperCase(),
+            documentsExposed: healthDocuments.length,
+        },
+        timestamp: new Date().toISOString(),
+    });
+
+    return {
+        patientProfile: serializeMongoObject({
+            name: patientProfile.name,
+            walletAddress: patientProfile.walletAddress,
+            emergencySummary: patientProfile.emergencySummary || {},
+        }),
+        healthDocuments: healthDocuments.map(serializeMongoObject),
+    };
 };
 
     

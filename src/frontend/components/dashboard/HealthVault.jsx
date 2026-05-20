@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
 import { Label } from '@/frontend/components/ui/label';
+import { Textarea } from '@/frontend/components/ui/textarea';
 import { useToast } from "@/frontend/hooks/use-toast";
 import { generateEmergencyCode, getActiveEmergencyCode, revokeEmergencyCode, getPatientProfile, updatePatientProfile } from '@/backend/services/mongodb';
 import { encryptData, decryptData } from '@/backend/lib/crypto';
@@ -36,6 +37,15 @@ const estimateBytesFromDataUri = (dataUri) => {
     return Math.floor((base64.length * 3) / 4);
 }
 
+const normalizeEmergencySummary = (summary = {}) => ({
+    bloodGroup: summary.bloodGroup || '',
+    allergies: summary.allergies || '',
+    activeMedicines: summary.activeMedicines || '',
+    conditions: summary.conditions || '',
+    emergencyContact: summary.emergencyContact || '',
+    notes: summary.notes || '',
+});
+
 const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     const [profile, setProfile] = useState(null);
     const [documents, setDocuments] = useState([]);
@@ -43,7 +53,9 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isRevoking, setIsRevoking] = useState(false);
+    const [isSavingSummary, setIsSavingSummary] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [emergencySummary, setEmergencySummary] = useState(normalizeEmergencySummary());
     // Consent UI moved to dedicated tab
     const [query, setQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
@@ -60,6 +72,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                 getActiveEmergencyCode(activeWallet)
             ]);
             setProfile(profileData);
+            setEmergencySummary(normalizeEmergencySummary(profileData?.emergencySummary));
             const docs = profileData?.healthDocuments || [];
             setDocuments(docs);
             setActiveCode(codeData);
@@ -90,7 +103,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         fetchData();
     }, [fetchData]);
 
-    const handleFileUpload = async (e, category) => {
+    const handleFileUpload = async (e, category, emergencyVisible) => {
         const file = e.target.files[0];
         if (!file || !category) return;
 
@@ -129,7 +142,8 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                 encryptedUri,
                 uploadedAt: new Date().toISOString(),
                 fileSize: file.size,
-                fileType: file.type
+                fileType: file.type,
+                emergencyVisible: Boolean(emergencyVisible)
             };
 
             const updatedDocuments = [...documents, newDocument];
@@ -282,6 +296,22 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         }
     };
 
+    const handleSaveEmergencySummary = async () => {
+        setIsSavingSummary(true);
+        try {
+            const summary = normalizeEmergencySummary(emergencySummary);
+            await updatePatientProfile(activeWallet, { ...profile, emergencySummary: summary });
+            setProfile(prev => ({ ...(prev || {}), emergencySummary: summary }));
+            setEmergencySummary(summary);
+            toast({ title: 'Emergency Summary Saved', description: 'Critical emergency information was updated.' });
+        } catch (error) {
+            console.error('Failed to save emergency summary:', error);
+            toast({ variant: 'destructive', title: 'Save failed', description: 'Could not update emergency information.' });
+        } finally {
+            setIsSavingSummary(false);
+        }
+    };
+
     const handleBackupVault = async () => {
         try {
             const payload = {
@@ -428,6 +458,75 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                     <CardContent className="space-y-4">
                         {/* Backup buttons removed */}
 
+                        <div className="rounded-lg border p-4 space-y-4 bg-muted/20">
+                            <div className="flex items-center gap-2">
+                                <Shield className="h-5 w-5 text-primary" />
+                                <h3 className="font-semibold">Critical Emergency Summary</h3>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label>Blood Group</Label>
+                                    <Input
+                                        value={emergencySummary.bloodGroup}
+                                        onChange={(e) => setEmergencySummary(prev => ({ ...prev, bloodGroup: e.target.value }))}
+                                        placeholder="O+, AB-, unknown..."
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Emergency Contact</Label>
+                                    <Input
+                                        value={emergencySummary.emergencyContact}
+                                        onChange={(e) => setEmergencySummary(prev => ({ ...prev, emergencyContact: e.target.value }))}
+                                        placeholder="Name and phone"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label>Allergies</Label>
+                                    <Textarea
+                                        value={emergencySummary.allergies}
+                                        onChange={(e) => setEmergencySummary(prev => ({ ...prev, allergies: e.target.value }))}
+                                        placeholder="Penicillin, peanuts, latex..."
+                                        rows={3}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Active Medicines</Label>
+                                    <Textarea
+                                        value={emergencySummary.activeMedicines}
+                                        onChange={(e) => setEmergencySummary(prev => ({ ...prev, activeMedicines: e.target.value }))}
+                                        placeholder="Metformin 500mg, insulin..."
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <Label>Known Conditions</Label>
+                                    <Textarea
+                                        value={emergencySummary.conditions}
+                                        onChange={(e) => setEmergencySummary(prev => ({ ...prev, conditions: e.target.value }))}
+                                        placeholder="Diabetes, asthma, cardiac history..."
+                                        rows={3}
+                                    />
+                                </div>
+                                <div>
+                                    <Label>Emergency Notes</Label>
+                                    <Textarea
+                                        value={emergencySummary.notes}
+                                        onChange={(e) => setEmergencySummary(prev => ({ ...prev, notes: e.target.value }))}
+                                        placeholder="Implants, care instructions, preferred hospital..."
+                                        rows={3}
+                                    />
+                                </div>
+                            </div>
+                            <Button type="button" onClick={handleSaveEmergencySummary} disabled={isSavingSummary}>
+                                {isSavingSummary ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
+                                Save Emergency Summary
+                            </Button>
+                        </div>
+
                         <UploadSection onUpload={handleFileUpload} isUploading={isUploading} />
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                             <h3 className="font-semibold">Your Emergency Documents</h3>
@@ -469,6 +568,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                                                     <p className="font-medium text-sm truncate" title={doc.name}>{doc.name}</p>
                                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                                         <Badge variant="secondary">{doc.category || 'Document'}</Badge>
+                                                        {doc.emergencyVisible && <Badge variant="outline">Emergency</Badge>}
                                                         <span>{new Date(doc.uploadedAt).toLocaleString()}</span>
                                                         <span>• {sizeMb.toFixed(2)} MB</span>
                                                     </div>
@@ -612,12 +712,18 @@ const VaultToolbar = () => null;
 
 const UploadSection = ({ onUpload, isUploading }) => {
     const [category, setCategory] = useState('');
+    const [emergencyVisible, setEmergencyVisible] = useState(false);
     const fileInputRef = React.useRef(null);
 
     const handleFileChange = (e) => {
         if (e.target.files[0] && category) {
-            onUpload(e, category);
+            onUpload(e, category, emergencyVisible);
         }
+    };
+
+    const handleCategoryChange = (value) => {
+        setCategory(value);
+        setEmergencyVisible(['Medical ID', 'Allergy List', 'Emergency Contact', 'Prescription', 'Vaccination'].includes(value));
     };
 
     return (
@@ -626,7 +732,7 @@ const UploadSection = ({ onUpload, isUploading }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <Label>Document Category</Label>
-                    <Select value={category} onValueChange={setCategory}>
+                    <Select value={category} onValueChange={handleCategoryChange}>
                         <SelectTrigger><SelectValue placeholder="Select a category..." /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="Prescription">🧾 Prescription</SelectItem>
@@ -662,6 +768,15 @@ const UploadSection = ({ onUpload, isUploading }) => {
                     </Button>
                 </div>
             </div>
+            <label className="flex items-start gap-2 text-sm">
+                <input
+                    type="checkbox"
+                    checked={emergencyVisible}
+                    onChange={(e) => setEmergencyVisible(e.target.checked)}
+                    className="mt-1"
+                />
+                <span>Expose this document through emergency code access</span>
+            </label>
         </div>
     )
 }

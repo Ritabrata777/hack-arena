@@ -14,74 +14,47 @@ Creating turbopack project {
   dir: 'C:\\Users\\LENOVO\\Downloads\\MediChain-main\\MediChain-main',
   testMode: true
 }
- ✓ Ready in 1997ms
+ ✓ Ready in 2.5s
+ ○ Compiling /api/cron/train-model ...
+ ✓ Compiled /api/cron/train-model in 7.3s
+[MongoDB] dev options: {
+  tls: true,
+  allowInsecureTls: true,
+  forceIpv4: true,
+  directConnection: false,
+  minVersion: 'n/a'
+}
+ GET /dashboard/admin 200 in 10390ms
+ GET /api/cron/train-model 200 in 11576ms
+ GET /dashboard/admin 200 in 467ms
+ ○ Compiling /favicon.ico ...
+ POST /dashboard/admin 200 in 431ms
+ ✓ Compiled /favicon.ico in 609ms
+ POST /dashboard/admin 200 in 379ms
+ GET /favicon.ico?favicon.73923737.ico 200 in 1050ms
+ POST /dashboard/admin 200 in 385ms
+ POST /dashboard/admin 200 in 311ms
+AI service busy/over quota, falling back to heuristic detection
+ POST /dashboard/admin 200 in 2110ms
+ GET /api/cron/train-model 200 in 7382ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 990ms
+ GET /dashboard 200 in 1258ms
  ○ Compiling / ...
- ✓ Compiled / in 5.7s
- GET / 200 in 6622ms
- ✓ Compiled /dashboard in 473ms
- GET /dashboard 200 in 658ms
- ○ Compiling /dashboard/admin ...
- ✓ Compiled /dashboard/admin in 1655ms
-[MongoDB] dev options: {
-  tls: true,
-  allowInsecureTls: true,
-  forceIpv4: true,
-  directConnection: false,
-  minVersion: 'n/a'
-}
- GET /dashboard/admin 200 in 3543ms
+ ✓ Compiled / in 2.1s
+ GET / 200 in 2620ms
  ○ Compiling /dashboard/doctor ...
- ✓ Compiled /dashboard/doctor in 3.2s
- GET /dashboard/doctor 200 in 3698ms
- ○ Compiling /dashboard/patient ...
- ✓ Compiled /dashboard/patient in 915ms
- GET /dashboard/patient 200 in 1218ms
- ○ Compiling /directory ...
- ✓ Compiled /directory in 524ms
- GET /directory 200 in 717ms
- ○ Compiling /emergency-access ...
- ✓ Compiled /emergency-access in 509ms
- GET /emergency-access 200 in 697ms
- ○ Compiling /fundraising ...
- ✓ Compiled /fundraising in 721ms
- GET /fundraising 200 in 963ms
- ○ Compiling /test-wallet ...
- ✓ Compiled /test-wallet in 516ms
- GET /test-wallet 200 in 720ms
- ✓ Compiled /api/db-check in 437ms
-[MongoDB] dev options: {
-  tls: true,
-  allowInsecureTls: true,
-  forceIpv4: true,
-  directConnection: false,
-  minVersion: 'n/a'
-}
- GET /api/db-check 200 in 885ms
- ✓ Compiled /api/ai-status in 245ms
- GET /api/ai-status 200 in 584ms
- GET / 200 in 413ms
- ✓ Compiled /favicon.ico in 323ms
- GET /favicon.ico?favicon.73923737.ico 200 in 719ms
- GET /directory 200 in 213ms
- POST /directory 200 in 245ms
- POST /directory 200 in 220ms
- GET /fundraising 200 in 231ms
- POST /fundraising 200 in 292ms
- POST /fundraising 200 in 249ms
- POST /fundraising 200 in 252ms
- POST /fundraising 200 in 308ms
- POST /fundraising 200 in 250ms
- POST /fundraising 200 in 248ms
- GET /dashboard/doctor 200 in 240ms
- POST /dashboard/doctor 200 in 260ms
- POST /dashboard/doctor 200 in 259ms
- POST /dashboard/doctor 200 in 330ms
- POST /dashboard/doctor 200 in 256ms
- POST /dashboard/doctor 200 in 251ms
- POST /dashboard/doctor 200 in 280ms
- POST /dashboard/doctor 200 in 261ms
- POST /dashboard/doctor 200 in 280ms
- POST /dashboard/doctor 200 in 259ms
- POST /dashboard/doctor 200 in 263ms
- POST /dashboard/doctor 200 in 270ms
- POST /dashboard/doctor 200 in 251ms
+ ✓ Compiled /dashboard/doctor in 4.7s
+ GET /dashboard/doctor 200 in 5025ms
+ POST /dashboard/doctor 200 in 432ms
+ POST /dashboard/doctor 200 in 323ms
+ POST /dashboard/doctor 200 in 328ms
+ POST /dashboard/doctor 200 in 336ms
+ POST /dashboard/doctor 200 in 319ms
+ POST /dashboard/doctor 200 in 317ms
+ POST /dashboard/doctor 200 in 307ms
+ POST /dashboard/doctor 200 in 309ms
+ POST /dashboard/doctor 200 in 311ms
+ POST /dashboard/doctor 200 in 306ms
+ POST /dashboard/doctor 200 in 313ms
+ POST /dashboard/doctor 200 in 304ms
