@@ -1,0 +1,24 @@
+   ▲ Next.js 15.5.18 (Turbopack)
+   - Local:        http://localhost:9003
+   - Network:      http://172.16.48.145:9003
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\LENOVO\\Downloads\\MediChain-main\\MediChain-main',
+  testMode: true
+}
+ ✓ Ready in 2.5s
+ ○ Compiling /api/db-check ...
+ ✓ Compiled /api/db-check in 3.2s
+[MongoDB] dev options: {
+  tls: true,
+  allowInsecureTls: true,
+  forceIpv4: true,
+  directConnection: false,
+  dnsServers: [ '8.8.8.8', '1.1.1.1' ],
+  minVersion: 'n/a'
+}
+ GET /api/db-check 200 in 4967ms

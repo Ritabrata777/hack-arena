@@ -93,7 +93,7 @@ const EmergencyAccessPage = () => {
                             placeholder="e.g., MED12345"
                             className="text-lg text-center font-mono tracking-widest max-w-xs"
                         />
-                        <Button onClick={handleAccessVault} disabled={isLoading}>
+                        <Button onClick={() => handleAccessVault()} disabled={isLoading || accessCode.length < 6}>
                             {isLoading ? <Loader2 className="mr-2 animate-spin" /> : null}
                             Access Records
                         </Button>

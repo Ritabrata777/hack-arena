@@ -2,36 +2,21 @@
 > medichain@1.0.0 dev
 > next dev --turbopack -p 9002
 
-   ▲ Next.js 15.3.3 (Turbopack)
+   ▲ Next.js 15.5.18 (Turbopack)
    - Local:        http://localhost:9002
    - Network:      http://192.168.1.41:9002
    - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
 
  ✓ Starting...
 Creating turbopack project {
   dir: 'C:\\Users\\LENOVO\\Downloads\\MediChain-main\\MediChain-main',
   testMode: true
 }
- ✓ Ready in 1886ms
- ○ Compiling / ...
- ✓ Compiled / in 4.3s
- GET / 200 in 5133ms
- GET / 200 in 309ms
- ○ Compiling /favicon.ico ...
- ✓ Compiled /favicon.ico in 988ms
- GET /favicon.ico?favicon.b3a6fb4d.ico 200 in 1395ms
- ○ Compiling /dashboard ...
- ✓ Compiled /dashboard in 1181ms
- GET /dashboard 200 in 1308ms
- GET /dashboard 200 in 168ms
- ○ Compiling /dashboard/admin ...
- ✓ Compiled /dashboard/admin in 5.6s
- ○ Compiling /_error ...
- ✓ Compiled /_error in 1868ms
- GET /dashboard/admin 500 in 9839ms
- GET /dashboard/admin 500 in 299ms
- GET /favicon.ico 200 in 382ms
-   Reload env: .env.local
+ ✓ Ready in 2.4s
+ ○ Compiling /emergency-access ...
+ ✓ Compiled /emergency-access in 5.9s
 [MongoDB] dev options: {
   tls: true,
   allowInsecureTls: true,
@@ -39,13 +24,118 @@ Creating turbopack project {
   directConnection: false,
   minVersion: 'n/a'
 }
- GET /dashboard/admin 200 in 1867ms
- GET /favicon.ico?favicon.b3a6fb4d.ico 200 in 437ms
- GET /favicon.ico?favicon.b3a6fb4d.ico 200 in 379ms
- POST /dashboard/admin 200 in 257ms
- POST /dashboard/admin 200 in 216ms
- POST /dashboard/admin 200 in 207ms
- POST /dashboard/admin 200 in 206ms
- GET /dashboard 200 in 320ms
- GET / 200 in 536ms
-[?25h
+ GET /emergency-access 200 in 6922ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1721ms
+ GET / 200 in 2334ms
+ ○ Compiling /dashboard/doctor ...
+ ✓ Compiled /dashboard/doctor in 4.7s
+ GET /dashboard/doctor 200 in 6820ms
+ POST /dashboard/doctor 200 in 394ms
+ POST /dashboard/doctor 200 in 260ms
+ POST /dashboard/doctor 200 in 264ms
+ POST /dashboard/doctor 200 in 248ms
+ POST /dashboard/doctor 200 in 258ms
+ POST /dashboard/doctor 200 in 272ms
+ POST /dashboard/doctor 200 in 261ms
+ POST /dashboard/doctor 200 in 257ms
+ POST /dashboard/doctor 200 in 263ms
+ POST /dashboard/doctor 200 in 253ms
+ POST /dashboard/doctor 200 in 251ms
+ POST /dashboard/doctor 200 in 251ms
+ POST /dashboard/doctor 200 in 265ms
+ POST /dashboard/doctor 200 in 251ms
+ POST /dashboard/doctor 200 in 246ms
+ POST /dashboard/doctor 200 in 247ms
+ POST /dashboard/doctor 200 in 257ms
+ POST /dashboard/doctor 200 in 267ms
+ POST /dashboard/doctor 200 in 259ms
+ POST /dashboard/doctor 200 in 273ms
+ POST /dashboard/doctor 200 in 258ms
+ POST /dashboard/doctor 200 in 247ms
+ POST /dashboard/doctor 200 in 258ms
+ POST /dashboard/doctor 200 in 277ms
+ ○ Compiling /dashboard/patient ...
+ ✓ Compiled /dashboard/patient in 1565ms
+ GET /dashboard/patient 200 in 1750ms
+ POST /dashboard/patient 200 in 286ms
+ POST /dashboard/patient 200 in 254ms
+ POST /dashboard/patient 200 in 245ms
+ POST /dashboard/patient 200 in 248ms
+ POST /dashboard/patient 200 in 238ms
+ POST /dashboard/patient 200 in 269ms
+ POST /dashboard/patient 200 in 233ms
+ POST /dashboard/patient 200 in 233ms
+ POST /dashboard/patient 200 in 237ms
+ POST /dashboard/patient 200 in 230ms
+ POST /dashboard/patient 200 in 241ms
+ POST /dashboard/patient 200 in 240ms
+Patient profile updated successfully for wallet: 0x07e28def8dc590a442790c80fd6a3a5240df0184
+ POST /dashboard/patient 200 in 960ms
+ POST /dashboard/patient 200 in 341ms
+ GET /emergency-access?code=5SVE9FRE 200 in 285ms
+ POST /emergency-access?code=5SVE9FRE 200 in 917ms
+ GET /dashboard/patient 200 in 228ms
+ POST /dashboard/patient 200 in 791ms
+ POST /dashboard/patient 200 in 283ms
+ POST /dashboard/patient 200 in 309ms
+ POST /dashboard/patient 200 in 304ms
+ POST /dashboard/patient 200 in 955ms
+ POST /dashboard/patient 200 in 380ms
+ POST /dashboard/patient 200 in 294ms
+ POST /dashboard/patient 200 in 299ms
+ POST /dashboard/patient 200 in 626ms
+ POST /dashboard/patient 200 in 374ms
+ POST /dashboard/patient 200 in 1221ms
+ POST /dashboard/patient 200 in 374ms
+ GET /dashboard/doctor 200 in 283ms
+ POST /dashboard/doctor 200 in 244ms
+ POST /dashboard/doctor 200 in 239ms
+ POST /dashboard/doctor 200 in 1512ms
+ POST /dashboard/doctor 200 in 381ms
+ POST /dashboard/doctor 200 in 297ms
+ POST /dashboard/doctor 200 in 407ms
+ POST /dashboard/doctor 200 in 252ms
+ POST /dashboard/doctor 200 in 253ms
+ POST /dashboard/doctor 200 in 1347ms
+ POST /dashboard/doctor 200 in 393ms
+ POST /dashboard/doctor 200 in 388ms
+ POST /dashboard/doctor 200 in 305ms
+ POST /dashboard/doctor 200 in 374ms
+ POST /dashboard/doctor 200 in 244ms
+ POST /dashboard/doctor 200 in 1623ms
+ POST /dashboard/doctor 200 in 282ms
+ POST /dashboard/doctor 200 in 408ms
+ POST /dashboard/doctor 200 in 241ms
+ POST /dashboard/doctor 200 in 245ms
+ POST /dashboard/doctor 200 in 243ms
+ POST /dashboard/doctor 200 in 241ms
+ POST /dashboard/doctor 200 in 259ms
+ ○ Compiling /fundraising ...
+ ✓ Compiled /fundraising in 1027ms
+ GET /fundraising 200 in 1205ms
+ POST /fundraising 200 in 1621ms
+ POST /fundraising 200 in 373ms
+ POST /fundraising 200 in 403ms
+ POST /fundraising 200 in 1734ms
+ POST /fundraising 200 in 356ms
+ POST / 200 in 587ms
+ POST /dashboard/doctor 200 in 369ms
+ POST / 200 in 576ms
+ GET / 200 in 235ms
+ GET /dashboard/patient 200 in 228ms
+ POST /dashboard/patient 200 in 1032ms
+ POST /dashboard/patient 200 in 262ms
+ POST /dashboard/patient 200 in 301ms
+ POST /dashboard/patient 200 in 222ms
+ POST /dashboard/patient 200 in 1215ms
+ POST /dashboard/patient 200 in 270ms
+ POST /dashboard/patient 200 in 307ms
+ POST /dashboard/patient 200 in 304ms
+ POST /dashboard/patient 200 in 1092ms
+ POST /dashboard/patient 200 in 395ms
+ POST /dashboard/patient 200 in 1268ms
+ POST /dashboard/patient 200 in 286ms
+ POST /dashboard/patient 200 in 255ms
+Patient profile updated successfully for wallet: 0x07e28def8dc590a442790c80fd6a3a5240df0184
+ POST /dashboard/patient 200 in 247ms

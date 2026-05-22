@@ -1,6 +1,8 @@
 // This approach is taken from https://github.com/vercel/next.js/tree/canary/examples/with-mongodb
 import { MongoClient } from 'mongodb'
 import { config as dotenvConfig } from 'dotenv'
+import { getServers, setServers } from 'node:dns'
+import dnsPromises from 'node:dns/promises'
 
 // Load env from standard files; if not set, also try config.env
 dotenvConfig()
@@ -27,6 +29,72 @@ if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
 const isDevEnv = process.env.NODE_ENV === 'development'
 const isWindows = process.platform === 'win32'
 const isSrv = uri.startsWith('mongodb+srv://')
+
+const configuredDnsServers = (process.env.MONGODB_DNS_SERVERS || '')
+  .split(',')
+  .map((server) => server.trim())
+  .filter(Boolean)
+
+if (configuredDnsServers.length > 0) {
+  try {
+    setServers(configuredDnsServers)
+    dnsPromises.setServers(configuredDnsServers)
+  } catch (err) {
+    throw new Error(`Invalid MONGODB_DNS_SERVERS value: ${err.message}`)
+  }
+}
+
+let clientUriPromise
+
+async function getClientUri() {
+  if (!clientUriPromise) {
+    clientUriPromise = expandSrvUriForConfiguredDns()
+  }
+  return clientUriPromise
+}
+
+async function expandSrvUriForConfiguredDns() {
+  if (!isSrv || configuredDnsServers.length === 0) {
+    return uri
+  }
+
+  const parsedUri = new URL(uri)
+  const srvHost = parsedUri.hostname
+  const srvRecords = await dnsPromises.resolveSrv(`_mongodb._tcp.${srvHost}`)
+
+  if (srvRecords.length === 0) {
+    throw new Error(`No MongoDB SRV records found for ${srvHost}`)
+  }
+
+  const hosts = srvRecords
+    .map((record) => `${record.name}:${record.port || 27017}`)
+    .join(',')
+
+  const searchParams = new URLSearchParams(parsedUri.search)
+  const txtRecords = await dnsPromises.resolveTxt(srvHost).catch((err) => {
+    if (err.code === 'ENODATA' || err.code === 'ENOTFOUND') {
+      return []
+    }
+    throw err
+  })
+
+  if (txtRecords.length > 0) {
+    const txtParams = new URLSearchParams(txtRecords[0].join(''))
+    for (const [key, value] of txtParams.entries()) {
+      if (!searchParams.has(key)) {
+        searchParams.set(key, value)
+      }
+    }
+  }
+
+  const auth = parsedUri.username
+    ? `${parsedUri.username}${parsedUri.password ? `:${parsedUri.password}` : ''}@`
+    : ''
+  const pathname = parsedUri.pathname || '/'
+  const query = searchParams.toString()
+
+  return `mongodb://${auth}${hosts}${pathname}${query ? `?${query}` : ''}`
+}
 
 // Dev-friendly defaults on Windows (can be disabled explicitly)
 const envInsecure = (process.env.MONGODB_TLS_INSECURE || '').toLowerCase()
@@ -65,6 +133,7 @@ if (isDevEnv) {
     allowInsecureTls,
     forceIpv4,
     directConnection,
+    dnsServers: getServers(),
     minVersion: 'n/a',
   })
 }
@@ -73,7 +142,8 @@ let client
 let clientPromise
 
 async function attemptConnect(primaryOptions, fallbackEnabled = true) {
-  const primaryClient = new MongoClient(uri, primaryOptions)
+  const clientUri = await getClientUri()
+  const primaryClient = new MongoClient(clientUri, primaryOptions)
   try {
     await primaryClient.connect()
     return primaryClient
@@ -90,7 +160,7 @@ async function attemptConnect(primaryOptions, fallbackEnabled = true) {
         family: 4,
         directConnection: true,
       }
-      const fallbackClient = new MongoClient(uri, fallbackOptions)
+      const fallbackClient = new MongoClient(clientUri, fallbackOptions)
       await fallbackClient.connect()
       return fallbackClient
     }

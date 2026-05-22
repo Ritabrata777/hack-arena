@@ -47,6 +47,37 @@ const normalizeEmergencySummary = (summary = {}) => ({
     notes: summary.notes || '',
 });
 
+const getEmergencyValue = (value, fallback = 'Not provided') => {
+    const normalizedValue = String(value || '').trim();
+    return normalizedValue || fallback;
+};
+
+const wrapCanvasText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) => {
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    const lines = [];
+    let currentLine = '';
+
+    words.forEach((word) => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        if (ctx.measureText(testLine).width <= maxWidth || !currentLine) {
+            currentLine = testLine;
+        } else {
+            lines.push(currentLine);
+            currentLine = word;
+        }
+    });
+
+    if (currentLine) lines.push(currentLine);
+    const visibleLines = lines.slice(0, maxLines);
+
+    visibleLines.forEach((line, index) => {
+        const suffix = index === maxLines - 1 && lines.length > maxLines ? '...' : '';
+        ctx.fillText(`${line}${suffix}`, x, y + index * lineHeight);
+    });
+
+    return y + visibleLines.length * lineHeight;
+};
+
 const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     const [profile, setProfile] = useState(null);
     const [documents, setDocuments] = useState([]);
@@ -462,7 +493,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         }
     };
 
-    const downloadQrCard = () => {
+    const downloadQrImage = () => {
         if (!qrDataUrl) return;
         const link = document.createElement('a');
         link.href = qrDataUrl;
@@ -470,6 +501,88 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    };
+
+    const downloadQrCard = async () => {
+        if (!qrDataUrl || typeof window === 'undefined') return;
+
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 760;
+            canvas.height = 460;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Canvas is not available');
+
+            const qrImage = new window.Image();
+            qrImage.src = qrDataUrl;
+            await new Promise((resolve, reject) => {
+                qrImage.onload = resolve;
+                qrImage.onerror = reject;
+            });
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, 86);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '700 28px Arial';
+            ctx.fillText('MediChain Emergency Card', 32, 38);
+            ctx.font = '500 15px Arial';
+            ctx.fillText('Scan this QR code to open emergency-only health details.', 32, 64);
+
+            ctx.fillStyle = '#fee2e2';
+            ctx.fillRect(590, 24, 128, 34);
+            ctx.fillStyle = '#991b1b';
+            ctx.font = '700 16px Arial';
+            ctx.fillText('EMERGENCY', 606, 47);
+
+            ctx.drawImage(qrImage, 34, 116, 220, 220);
+
+            ctx.fillStyle = '#111827';
+            ctx.font = '700 25px Arial';
+            wrapCanvasText(ctx, profile?.name || 'Patient Profile', 286, 128, 420, 30, 2);
+
+            ctx.fillStyle = '#475569';
+            ctx.font = '600 14px Arial';
+            ctx.fillText('Access code', 286, 188);
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '700 24px Courier New';
+            ctx.fillText(activeCode?.code || '', 286, 216);
+
+            const summaryRows = [
+                ['Blood group', getEmergencyValue(emergencySummary.bloodGroup)],
+                ['Emergency contact', getEmergencyValue(emergencySummary.emergencyContact)],
+                ['Allergies', getEmergencyValue(emergencySummary.allergies)],
+                ['Active medicines', getEmergencyValue(emergencySummary.activeMedicines)],
+            ];
+
+            let rowY = 256;
+            summaryRows.forEach(([label, value]) => {
+                ctx.fillStyle = '#64748b';
+                ctx.font = '700 13px Arial';
+                ctx.fillText(label.toUpperCase(), 286, rowY);
+                ctx.fillStyle = '#0f172a';
+                ctx.font = '500 16px Arial';
+                rowY = wrapCanvasText(ctx, value, 286, rowY + 23, 420, 20, 2) + 12;
+            });
+
+            ctx.fillStyle = '#475569';
+            ctx.font = '500 13px Arial';
+            ctx.fillText('This card opens only the emergency summary and documents marked for emergency access.', 34, 390);
+            ctx.fillText('Revoke the code anytime from the MediChain Emergency Vault.', 34, 416);
+
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = `medichain-emergency-card-${activeCode?.code || 'card'}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (error) {
+            console.error('Failed to generate emergency card:', error);
+            toast({ variant: 'destructive', title: 'Download failed', description: 'Could not create the emergency card image.' });
+        }
     };
 
     const totalBytes = useMemo(() => {
@@ -746,14 +859,33 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                                             <p className="text-xs text-muted-foreground">Scan to open the critical medical summary.</p>
                                         </div>
                                     </div>
-                                    <div className="flex justify-center rounded-md bg-white p-3">
-                                        {qrDataUrl ? (
-                                            <img src={qrDataUrl} alt="Emergency access QR code" className="h-48 w-48" />
-                                        ) : (
-                                            <div className="flex h-48 w-48 items-center justify-center text-muted-foreground">
-                                                <Loader2 className="h-6 w-6 animate-spin" />
+                                    <div className="rounded-md border bg-white p-3 text-slate-950 shadow-sm">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">MediChain</p>
+                                                <p className="truncate text-sm font-semibold">{profile?.name || 'Patient Profile'}</p>
+                                                <p className="font-mono text-xs text-slate-600">{activeCode.code}</p>
                                             </div>
-                                        )}
+                                            <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-bold uppercase text-red-700">Emergency</span>
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-[112px_1fr] gap-3">
+                                            <div className="flex h-28 w-28 items-center justify-center rounded bg-white">
+                                                {qrDataUrl ? (
+                                                    <img src={qrDataUrl} alt="Emergency access QR code" className="h-28 w-28" />
+                                                ) : (
+                                                    <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+                                                )}
+                                            </div>
+                                            <div className="space-y-2 text-xs">
+                                                <EmergencyCardRow label="Blood" value={emergencySummary.bloodGroup} />
+                                                <EmergencyCardRow label="Contact" value={emergencySummary.emergencyContact} />
+                                                <EmergencyCardRow label="Allergies" value={emergencySummary.allergies} />
+                                                <EmergencyCardRow label="Meds" value={emergencySummary.activeMedicines} />
+                                            </div>
+                                        </div>
+                                        <p className="mt-3 text-[11px] leading-4 text-slate-500">
+                                            Scan to open emergency-only health details and critical documents.
+                                        </p>
                                     </div>
                                     <Input readOnly value={emergencyAccessUrl} className="text-xs" />
                                     <div className="grid grid-cols-1 gap-2">
@@ -761,9 +893,13 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                                             <LinkIcon className="mr-2 h-4 w-4" />
                                             Copy QR Link
                                         </Button>
+                                        <Button type="button" variant="outline" onClick={downloadQrImage} disabled={!qrDataUrl}>
+                                            <QrCode className="mr-2 h-4 w-4" />
+                                            Download QR Image
+                                        </Button>
                                         <Button type="button" variant="outline" onClick={downloadQrCard} disabled={!qrDataUrl}>
                                             <Download className="mr-2 h-4 w-4" />
-                                            Download QR
+                                            Download Emergency Card
                                         </Button>
                                         <Button type="button" variant="secondary" onClick={() => window.open(emergencyAccessUrl, '_blank')} disabled={!emergencyAccessUrl}>
                                             <ExternalLink className="mr-2 h-4 w-4" />
@@ -798,6 +934,13 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
 }
 
 const VaultToolbar = () => null;
+
+const EmergencyCardRow = ({ label, value }) => (
+    <div>
+        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="line-clamp-2 break-words font-medium leading-4">{getEmergencyValue(value)}</p>
+    </div>
+);
 
 const UploadSection = ({ onUpload, isUploading }) => {
     const [category, setCategory] = useState('');

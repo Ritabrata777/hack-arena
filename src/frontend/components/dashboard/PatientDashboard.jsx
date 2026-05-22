@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/frontend/components/ui/card';
 import { Button } from '@/frontend/components/ui/button';
-import { FileText, PlusCircle, MessageSquare, User, HeartHandshake, Calendar, Stethoscope, Clock } from 'lucide-react';
+import { FileText, PlusCircle, MessageSquare, User, HeartHandshake, Calendar, Stethoscope, Clock, QrCode } from 'lucide-react';
 import { useMemo } from 'react';
 import {
     Accordion,
@@ -77,6 +77,18 @@ const PatientDashboard = ({ setActiveTab, consultations, activeWallet, doctorPro
                         <div className="text-2xl font-bold text-accent-foreground">Need Help?</div>
                         <p className="text-xs text-accent-foreground/70">
                             Request financial aid for treatment.
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="cursor-pointer hover:bg-destructive/10 bg-destructive/5 border-destructive/30" onClick={() => setActiveTab('health-vault')}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Emergency QR Card</CardTitle>
+                        <QrCode className="h-4 w-4 text-destructive" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">Ready Access</div>
+                        <p className="text-xs text-muted-foreground">
+                            Create a scannable card for blood group, allergies, contacts, and active meds.
                         </p>
                     </CardContent>
                 </Card>
