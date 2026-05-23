@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { MEDI_CHAIN_CONTRACT_ADDRESS, FUNDRAISER_CONTRACT_ADDRESS, AMOY_RPC_URL, AMOY_CHAIN_ID } from '@/backend/contracts/config';
 import mediChainArtifact from '@/backend/artifacts/src/backend/contracts/MediChain.sol/MediChain.json';
 import fundraiserArtifact from '@/backend/artifacts/src/backend/contracts/Fundraiser.sol/Fundraiser.json';
+import { getTransactionFeeOverrides } from '@/lib/gas';
 
 // --- Configuration & Constants ---
 // Use the ABI from the artifacts
@@ -106,7 +107,10 @@ export const verifyDoctorOnBlockchain = async (doctorWallet) => {
         const signer = await provider.getSigner();
         const contract = await getMediChainContract(signer);
 
-        const tx = await contract.verifyDoctor(doctorWallet);
+        const tx = await contract.verifyDoctor(
+            doctorWallet,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait(); // Wait for confirmation
         return { txHash: tx.hash };
     } catch (error) {
@@ -122,7 +126,10 @@ export const banUserOnBlockchain = async (userWallet, userType) => {
         const signer = await provider.getSigner();
         const contract = await getMediChainContract(signer);
 
-        const tx = await contract.banDoctor(userWallet); // Assuming function name in contract
+        const tx = await contract.banDoctor(
+            userWallet,
+            await getTransactionFeeOverrides(provider)
+        ); // Assuming function name in contract
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
@@ -138,7 +145,10 @@ export const unbanUserOnBlockchain = async (userWallet) => {
         const signer = await provider.getSigner();
         const contract = await getMediChainContract(signer);
 
-        const tx = await contract.unbanDoctor(userWallet);
+        const tx = await contract.unbanDoctor(
+            userWallet,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
