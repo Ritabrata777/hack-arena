@@ -1,204 +1,190 @@
-﻿# MediChain - Blockchain-Powered Healthcare Platform
+# MediChain
 
-> **Revolutionizing Healthcare with AI and Blockchain Technology**
+Patient-owned medical records, verified doctors, emergency access, and transparent medical fundraising.
 
-MediChain addresses critical healthcare challenges: preventable medical errors, fraudulent fundraising, and lack of transparency in medical donations. Our platform combines AI-powered symptom triage, verified doctor networks, and transparent blockchain-based fundraising to ensure patients receive the care and financial support they need.
+MediChain is a blockchain-powered healthcare platform that helps patients carry their medical history across doctors and hospitals. It combines MongoDB-backed health records, wallet-based identity, verified doctor profiles, AI assistance, emergency health vaults, and transparent fundraising workflows.
 
-## 🌟 Key Features
+## Real-Life Problem
 
-### 🤖 AI-Powered Healthcare
-- **Intelligent Symptom Triage**: AI chatbot provides initial health guidance and symptom analysis
-- **Smart Prescription Generation**: AI-assisted prescription recommendations
-- **Anomaly Detection**: Advanced AI algorithms detect potential health anomalies
-- **Contextual Health Insights**: Personalized health recommendations based on patient history
+Healthcare records are often scattered across paper files, WhatsApp messages, hospital systems, and patient memory. This creates serious problems:
 
-### 👨‍⚕️ Verified Doctor Network
-- **Reputation Scoring System**: Doctors earn trust through verified credentials and patient feedback
-- **Transparent Profiles**: Complete doctor profiles with specialties, ratings, and availability
-- **Secure Communication**: Encrypted messaging between patients and healthcare providers
-- **Appointment Management**: Streamlined booking and scheduling system
+- Patients lose prescriptions, reports, and old consultation notes.
+- Doctors often treat patients without full medical history.
+- Emergency teams may not know allergies, blood group, current medicines, or chronic conditions.
+- Fake or unverifiable medical fundraising reduces donor trust.
+- Patients rarely know who accessed their sensitive medical data.
 
-### 💰 Transparent Fundraising
-- **Blockchain-Verified Campaigns**: All fundraising campaigns are verified by licensed doctors
-- **Real-Time Donation Tracking**: Transparent donation history with blockchain verification
-- **Smart Contract Integration**: Automated fund distribution using Aptos blockchain
-- **Donor Transparency**: Complete audit trail of all donations and fund usage
+MediChain solves this by giving every patient a portable, wallet-linked health profile that can be updated by verified doctors and accessed safely in emergencies.
 
-### 🔐 Secure Health Records
-- **Encrypted Health Vault**: Patient-controlled health record storage
-- **Emergency Access Codes**: Secure emergency access with audit trails
-- **Consent Management**: Granular privacy controls for health data sharing
-- **Blockchain Security**: Immutable health record storage on Aptos blockchain
+## What MediChain Does
 
-## 🏗️ Architecture
+- Stores patient profiles, documents, consultations, appointments, and health vault data.
+- Lets doctors register with license, specialization, clinic, and verification status.
+- Allows doctors to create consultation logs and digital health records.
+- Gives patients control over health documents and sharing permissions.
+- Provides emergency access to critical information with audit logging.
+- Supports medical fundraising requests verified by doctors and admins.
+- Tracks doctor-patient messages, appointments, renewals, and fundraiser proofs.
+- Uses AI for symptom triage, document understanding, summaries, and anomaly detection.
+- Uses blockchain transactions for trust, transparency, and verifiable medical actions.
 
-### Frontend
-- **Next.js 14**: React-based framework with App Router
-- **Tailwind CSS**: Utility-first CSS framework for responsive design
-- **Shadcn/ui**: Modern component library for consistent UI
-- **TypeScript**: Type-safe development environment
+## Why It Is Required
 
-### Backend
-- **Node.js**: Server-side JavaScript runtime
-- **MongoDB**: NoSQL database for flexible data storage
-- **Aptos Blockchain**: Layer 1 blockchain for secure transactions
-- **AI Integration**: Google Gemini AI for intelligent health assistance
+This project is not just a "healthcare app with blockchain." The real need is a trusted medical data layer that follows the patient.
 
-### Blockchain Integration
-- **Aptos Move**: Smart contracts for fundraising and health records
-- **Wallet Integration**: Petra wallet for secure transactions
-- **Transaction Verification**: Real-time blockchain transaction monitoring
-- **Smart Contracts**: Automated fund distribution and record management
+In real life, a patient may visit one clinic today, another hospital tomorrow, and need emergency care somewhere else next month. Without a shared, trusted record, doctors waste time, patients repeat tests, and critical details can be missed. MediChain reduces that gap by making medical history portable, consent-aware, and verifiable.
 
-## 🚀 Quick Start
+## Key Features
+
+### Patient Portal
+
+- Wallet-based login
+- Personal profile
+- Medical documents
+- Health vault
+- Emergency summary
+- Consent management
+- Appointment booking
+- Medical fundraising requests
+- Chat with doctors
+
+### Doctor Portal
+
+- Doctor registration
+- License and specialization profile
+- Verification status
+- Patient consultations
+- Medical logs
+- Appointment management
+- Prescription renewal requests
+- Fundraiser verification
+- Secure messaging
+
+### Admin Portal
+
+- Doctor verification
+- User management
+- Fundraiser approval
+- Donation and request visibility
+- Fraud/anomaly review
+- Platform oversight
+
+### Emergency Health Vault
+
+Emergency responders can access only critical patient information, such as:
+
+- Blood group
+- Allergies
+- Current medicines
+- Emergency contact
+- Important health documents
+- Recent medical summary
+
+This is useful when a patient cannot explain their condition.
+
+### Transparent Medical Fundraising
+
+Patients can request financial help for treatment. Doctors and admins can verify the request before it becomes visible as a trusted campaign. This helps donors identify genuine medical cases.
+
+## Hackathon Demo Flow
+
+1. Patient logs in with wallet and creates a health profile.
+2. Doctor logs in and appears as a verified medical professional.
+3. Doctor creates a consultation record for the patient.
+4. Patient opens their dashboard and sees the medical record.
+5. Emergency access reveals only critical data.
+6. Patient submits a fundraiser request.
+7. Doctor/admin verifies it.
+8. Donors can see a more trustworthy medical fundraiser.
+
+## Tech Stack
+
+- Next.js 15
+- React
+- Tailwind CSS
+- Shadcn UI components
+- MongoDB Atlas
+- Ethers.js
+- Solidity smart contracts
+- Polygon Amoy testnet
+- Google Gemini AI
+- Genkit
+
+## Local Setup
 
 ### Prerequisites
-- Node.js 18+ 
-- MongoDB Atlas account
-- Aptos wallet (Petra)
+
+- Node.js 18 or newer
+- MongoDB Atlas database
+- MetaMask wallet
 - Google AI API key
+- Polygon Amoy RPC URL
 
-### Installation
+### Install
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Moinakcodes/medichain.git
-   cd medichain
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Setup**
-   ```bash
-   cp config.env.example config.env
-   ```
-   
-   Update `config.env` with your credentials:
-   ```env
-   # MongoDB Configuration
-   MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/"
-   MONGODB_DB_NAME="medichain"
-   
-   # Aptos Configuration
-   PRIVATE_KEY="your_aptos_private_key"
-   APTOS_TESTNET_RPC_URL="https://fullnode.testnet.aptoslabs.com/v1"
-   
-   # AI Configuration
-   GOOGLE_API_KEY="your_google_ai_api_key"
-   
-   # Contract Addresses
-   NEXT_PUBLIC_MEDI_CHAIN_CONTRACT_ADDRESS="your_contract_address"
-   ```
-
-4. **Start the development server**
-   ```bash
-   npm run dev
-   ```
-
-5. **Open your browser**
-   Navigate to `http://localhost:3000`
-
-## 📱 Platform Features
-
-### For Patients
-- **AI Health Assistant**: 24/7 intelligent health guidance
-- **Doctor Directory**: Find and book appointments with verified doctors
-- **Health Records**: Secure, patient-controlled medical history
-- **Fundraising**: Request financial assistance for medical expenses
-- **Emergency Access**: Share health data in critical situations
-
-### For Doctors
-- **Patient Management**: Comprehensive patient profiles and history
-- **AI-Assisted Diagnosis**: AI-powered tools for better patient care
-- **Fundraising Approval**: Review and approve patient fundraising requests
-- **Secure Communication**: Encrypted messaging with patients
-- **Reputation Building**: Build trust through verified credentials
-
-### For Donors
-- **Transparent Campaigns**: View verified fundraising campaigns
-- **Real-Time Tracking**: Monitor how donations are used
-- **Blockchain Verification**: All transactions are recorded on blockchain
-- **Impact Measurement**: See the direct impact of your contributions
-
-## 🔧 Technical Implementation
-
-### Smart Contracts
-- **MediChain Contract**: Core health record and patient management
-- **Fundraiser Contract**: Transparent fundraising and donation tracking
-- **Health Wallet Contract**: Secure health data storage and access control
-
-### AI Integration
-- **Symptom Analysis**: Advanced AI for initial health assessment
-- **Prescription Generation**: AI-assisted medication recommendations
-- **Anomaly Detection**: Machine learning for health pattern recognition
-- **Natural Language Processing**: Conversational AI for health guidance
-
-### Security Features
-- **End-to-End Encryption**: All health data is encrypted
-- **Blockchain Immutability**: Health records cannot be tampered with
-- **Access Control**: Granular permissions for data sharing
-- **Audit Trails**: Complete history of all data access and modifications
-
-## 🌐 Deployment
-
-### Production Deployment
-1. **Build the application**
-   ```bash
-   npm run build
-   ```
-
-2. **Deploy to Vercel/Netlify**
-   ```bash
-   npm run deploy
-   ```
-
-3. **Configure environment variables** in your hosting platform
-
-### Docker Deployment
 ```bash
-docker build -t medichain .
-docker run -p 3000:3000 medichain
+git clone https://github.com/Ritabrata777/hack-arena.git
+cd hack-arena
+npm install
 ```
 
-## 📊 Monitoring & Analytics
+### Configure Environment
 
-- **Real-time Health Metrics**: Track patient health trends
-- **Donation Analytics**: Monitor fundraising campaign performance
-- **Doctor Performance**: Track doctor ratings and patient outcomes
-- **Platform Usage**: Comprehensive analytics dashboard
+Create `.env.local` and add the required values:
 
-## 🤝 Contributing
+```env
+MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/database"
+MONGODB_DB_NAME="medichain"
 
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+AMOY_RPC_URL="your_polygon_amoy_rpc_url"
+NEXT_PUBLIC_AMOY_RPC_URL="your_polygon_amoy_rpc_url"
 
-### Development Setup
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+PRIVATE_KEY="your_testnet_private_key"
+GOOGLE_API_KEY="your_google_ai_key"
 
-## 🔮 Roadmap
+NEXT_PUBLIC_MEDI_CHAIN_CONTRACT_ADDRESS="deployed_contract_address"
+NEXT_PUBLIC_FUNDRAISER_CONTRACT_ADDRESS="deployed_contract_address"
+```
 
-### Phase 1 (Current)
-- ✅ AI-powered symptom triage
-- ✅ Doctor verification system
-- ✅ Blockchain fundraising
-- ✅ Secure health records
+### Run
 
-### Phase 2 (Q2 2024)
-- 🔄 Mobile application (iOS/Android)
-- 🔄 Advanced AI diagnostics
-- 🔄 Insurance integration
-- 🔄 Telemedicine features
+```bash
+npm run dev
+```
 
-### Phase 3 (Q3 2024)
-- 📋 Global doctor network
-- 📋 Multi-language support
-- 📋 Advanced analytics
-- 📋 Enterprise solutions
+Open:
 
----
+```text
+http://localhost:9002
+```
+
+## Useful Commands
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
+
+## Best Real-Life Use Cases
+
+- Emergency access when a patient is unconscious
+- Recovering lost prescriptions and reports
+- Doctor-to-doctor patient transfer
+- Rural health camps with portable patient history
+- Verified medical crowdfunding
+- Chronic disease follow-up across multiple doctors
+- Audit trail for sensitive medical data access
+
+## Future Improvements
+
+- Emergency QR health passport
+- Medicine allergy and drug interaction safety check
+- Cross-hospital transfer pack
+- Insurance claim document bundle
+- Multilingual patient summaries
+- Doctor reputation scoring from verified consultations
+
+## One-Line Pitch
+
+MediChain gives patients a portable, verifiable medical record and gives doctors trusted access to the right health data when it matters most.
