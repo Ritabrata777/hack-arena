@@ -272,7 +272,12 @@ export const grantConsent = async ({ patient, grantee, scopeId, expiresAt }) => 
         const scopeHash = await createHash(scopeId);
         // Expiry should be unix timestamp (seconds), ensure input is correct
 
-        const tx = await contract.grantConsent(grantee, scopeHash, expiresAt);
+        const tx = await contract.grantConsent(
+            grantee,
+            scopeHash,
+            expiresAt,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
@@ -292,7 +297,11 @@ export const revokeConsent = async ({ patient, grantee, scopeId }) => {
 
         const scopeHash = await createHash(scopeId);
 
-        const tx = await contract.revokeConsent(grantee, scopeHash);
+        const tx = await contract.revokeConsent(
+            grantee,
+            scopeHash,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
