@@ -29,6 +29,7 @@ if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
 const isDevEnv = process.env.NODE_ENV === 'development'
 const isWindows = process.platform === 'win32'
 const isSrv = uri.startsWith('mongodb+srv://')
+const shouldExpandSrv = (process.env.MONGODB_EXPAND_SRV || '').toLowerCase() === 'true'
 
 const configuredDnsServers = (process.env.MONGODB_DNS_SERVERS || '')
   .split(',')
@@ -54,7 +55,7 @@ async function getClientUri() {
 }
 
 async function expandSrvUriForConfiguredDns() {
-  if (!isSrv || configuredDnsServers.length === 0) {
+  if (!isSrv || configuredDnsServers.length === 0 || !shouldExpandSrv) {
     return uri
   }
 
@@ -138,6 +139,7 @@ if (isDevEnv) {
     forceIpv4,
     directConnection,
     dnsServers: dns.getServers(),
+    expandSrv: shouldExpandSrv,
     minVersion: 'n/a',
     serverSelectionTimeoutMS,
   })

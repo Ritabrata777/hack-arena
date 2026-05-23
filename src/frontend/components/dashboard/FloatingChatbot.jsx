@@ -1,19 +1,368 @@
 'use client';
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Bot, Minimize2, Loader2 } from 'lucide-react';
+import { AlertTriangle, MessageSquare, X, Send, Bot, Minimize2, Loader2, RotateCcw, Stethoscope } from 'lucide-react';
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
 import { ScrollArea } from '@/frontend/components/ui/scroll-area';
 import { Card, CardContent } from '@/frontend/components/ui/card';
 import { Avatar, AvatarFallback } from '@/frontend/components/ui/avatar';
 
-const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
+const symptomProfiles = [
+  {
+    key: 'cold',
+    label: 'cold or flu symptoms',
+    keywords: ['cold', 'flu', 'runny nose', 'sore throat', 'sneezing', 'congestion', 'body ache'],
+    mildMaxDays: 7,
+    otc: 'paracetamol/acetaminophen for fever or body ache, saline nasal spray for congestion, and throat lozenges for throat irritation',
+    homeCare: 'Rest, drink warm fluids, use steam inhalation, and consider honey for cough if the patient is over 1 year old.',
+  },
+  {
+    key: 'fever',
+    label: 'fever',
+    keywords: ['fever', 'temperature', 'chills'],
+    mildMaxDays: 3,
+    otc: 'paracetamol/acetaminophen as per the label dose',
+    homeCare: 'Rest, drink plenty of fluids, wear light clothing, and monitor temperature.',
+  },
+  {
+    key: 'cough',
+    label: 'cough',
+    keywords: ['cough', 'dry cough', 'wet cough', 'phlegm'],
+    mildMaxDays: 7,
+    otc: 'dextromethorphan for dry cough or guaifenesin for mucus cough, only as per the label',
+    homeCare: 'Drink warm fluids, use honey if age-appropriate, avoid smoke/dust, and use steam inhalation.',
+  },
+  {
+    key: 'headache',
+    label: 'headache',
+    keywords: ['headache', 'head ache', 'migraine'],
+    mildMaxDays: 2,
+    otc: 'paracetamol/acetaminophen; ibuprofen may be considered if it is safe for you',
+    homeCare: 'Hydrate, rest in a dark quiet room, reduce screen time, and try gentle neck/shoulder stretches.',
+  },
+  {
+    key: 'nausea',
+    label: 'nausea',
+    keywords: ['nausea', 'vomit', 'vomiting', 'queasy'],
+    mildMaxDays: 2,
+    otc: 'oral rehydration salts/electrolyte solution',
+    homeCare: 'Take small sips often, eat bland foods when tolerated, avoid oily foods, and rest.',
+  },
+  {
+    key: 'diarrhea',
+    label: 'diarrhea',
+    keywords: ['diarrhea', 'loose motion', 'loose stool', 'stomach upset'],
+    mildMaxDays: 2,
+    otc: 'oral rehydration salts/electrolyte solution; loperamide only for adults without fever or blood in stool',
+    homeCare: 'Keep hydrated, eat bland foods, avoid alcohol/dairy for a short time, and watch for dehydration.',
+  },
+  {
+    key: 'acidity',
+    label: 'acidity or heartburn',
+    keywords: ['acidity', 'heartburn', 'acid reflux', 'gastric', 'gas'],
+    mildMaxDays: 3,
+    otc: 'an antacid such as calcium carbonate, or famotidine for short-term relief as per the label',
+    homeCare: 'Avoid spicy/fatty foods, eat smaller meals, do not lie down right after eating, and elevate your head during sleep.',
+  },
+  {
+    key: 'cuts_burns',
+    label: 'minor cuts or burns',
+    keywords: ['cut', 'wound', 'scrape', 'minor burn', 'burn'],
+    mildMaxDays: 2,
+    otc: 'plain petroleum jelly for small cuts or an antiseptic solution; burn gel may help minor burns',
+    homeCare: 'Rinse gently with clean water, keep the area clean, cover with a sterile dressing, and cool minor burns under running water.',
+  },
+  {
+    key: 'rash',
+    label: 'rash',
+    keywords: ['rash', 'itching', 'hives', 'skin irritation'],
+    mildMaxDays: 3,
+    otc: 'cetirizine for itching or 1% hydrocortisone cream for a small itchy patch, as per the label',
+    homeCare: 'Avoid scratching, use a cool compress, avoid new soaps/cosmetics, and keep the area dry.',
+  },
+  {
+    key: 'muscle_joint',
+    label: 'muscle or joint pain',
+    keywords: ['muscle pain', 'joint pain', 'sprain', 'strain', 'back pain', 'knee pain', 'body pain'],
+    mildMaxDays: 3,
+    otc: 'paracetamol/acetaminophen; ibuprofen gel or tablets may help if safe for you',
+    homeCare: 'Rest the area, use ice for the first day after injury, use gentle stretching later, and avoid heavy strain.',
+  },
+  {
+    key: 'eye',
+    label: 'eye irritation',
+    keywords: ['eye irritation', 'red eye', 'itchy eye', 'watery eye', 'dry eye'],
+    mildMaxDays: 2,
+    otc: 'lubricating artificial tears',
+    homeCare: 'Avoid rubbing the eye, rinse with clean water if exposed to dust, and avoid contact lenses until better.',
+  },
+  {
+    key: 'earache',
+    label: 'earache',
+    keywords: ['earache', 'ear pain', 'ear hurts'],
+    mildMaxDays: 1,
+    otc: 'paracetamol/acetaminophen for pain as per the label',
+    homeCare: 'Keep the ear dry and avoid putting drops or objects in the ear unless advised by a clinician.',
+  },
+  {
+    key: 'toothache',
+    label: 'toothache',
+    keywords: ['toothache', 'tooth pain', 'gum pain', 'dental pain'],
+    mildMaxDays: 1,
+    otc: 'paracetamol/acetaminophen; ibuprofen may be considered if safe for you',
+    homeCare: 'Rinse with warm salt water, keep the area clean, and book a dentist visit if pain continues.',
+  },
+  {
+    key: 'fatigue',
+    label: 'fatigue',
+    keywords: ['fatigue', 'tired', 'weakness', 'low energy'],
+    mildMaxDays: 3,
+    otc: 'no specific medicine is usually needed for mild short-term fatigue',
+    homeCare: 'Prioritize sleep, hydration, balanced meals, light movement, and reduce alcohol/caffeine late in the day.',
+  },
+  {
+    key: 'anxiety',
+    label: 'mild anxiety',
+    keywords: ['anxiety', 'anxious', 'panic', 'stress', 'worried'],
+    mildMaxDays: 2,
+    otc: 'no over-the-counter medicine is recommended here without professional guidance',
+    homeCare: 'Try slow breathing, grounding exercises, a short walk, journaling, and reducing caffeine.',
+  },
+  {
+    key: 'insomnia',
+    label: 'insomnia',
+    keywords: ['insomnia', 'sleep problem', 'cant sleep', "can't sleep", 'sleepless'],
+    mildMaxDays: 3,
+    otc: 'melatonin may help short-term sleep timing issues, as per the label',
+    homeCare: 'Keep a regular sleep schedule, avoid screens before bed, avoid late caffeine, and keep the room cool and dark.',
+  },
+  {
+    key: 'menstrual_cramps',
+    label: 'menstrual cramps',
+    keywords: ['menstrual cramps', 'period pain', 'cramps', 'period cramps'],
+    mildMaxDays: 3,
+    otc: 'ibuprofen or naproxen may help cramps if safe for you; paracetamol/acetaminophen is another option',
+    homeCare: 'Use a heating pad, hydrate, rest, and try gentle stretching.',
+  },
+  {
+    key: 'uti',
+    label: 'UTI symptoms',
+    keywords: ['uti', 'burning urine', 'painful urination', 'urine burning', 'frequent urination'],
+    mildMaxDays: 0,
+    otc: '',
+    homeCare: '',
+    alwaysDoctor: true,
+    doctorReason: 'UTI symptoms could be related to an infection that may need testing and prescription treatment.',
+  },
+  {
+    key: 'acne',
+    label: 'acne',
+    keywords: ['acne', 'pimple', 'pimples', 'blackheads'],
+    mildMaxDays: 14,
+    otc: 'benzoyl peroxide 2.5%-5% or salicylic acid face wash, introduced slowly as per the label',
+    homeCare: 'Use gentle cleanser, avoid picking, choose non-comedogenic products, and protect skin from sun irritation.',
+  },
+  {
+    key: 'fungal',
+    label: 'possible fungal skin infection',
+    keywords: ['fungal', 'ringworm', 'athlete foot', "athlete's foot", 'jock itch'],
+    mildMaxDays: 7,
+    otc: 'clotrimazole or terbinafine cream as per the label for common superficial fungal infections',
+    homeCare: 'Keep the area clean and dry, avoid sharing towels, and change sweaty clothes promptly.',
+  },
+];
+
+const redFlagTerms = [
+  'severe',
+  'unbearable',
+  'chest pain',
+  'shortness of breath',
+  'breathing',
+  'faint',
+  'confusion',
+  'blood',
+  'stiff neck',
+  'dehydration',
+  'pregnant',
+  'infant',
+  'baby',
+  'very high',
+  'persistent vomiting',
+  'weakness',
+  'vision',
+  'stroke',
+  'suicidal',
+  'self harm',
+  'seizure',
+  'high fever',
+  'pus',
+  'swelling face',
+];
+
+const prescriptionTerms = [
+  'antibiotic',
+  'antibiotics',
+  'amoxicillin',
+  'azithromycin',
+  'steroid',
+  'prednisone',
+  'insulin',
+  'blood pressure medicine',
+  'opioid',
+  'tramadol',
+  'codeine',
+  'alprazolam',
+  'diazepam',
+  'prescription',
+];
+
+const seriousConditionTerms = [
+  'heart attack',
+  'stroke',
+  'cancer',
+  'seizure',
+  'appendicitis',
+  'pneumonia',
+  'malaria',
+  'dengue',
+  'covid severe',
+  'kidney failure',
+  'liver failure',
+  'suicide',
+  'self harm',
+];
+
+const medicalFooter =
+  "I am an AI, not a licensed doctor. This is general guidance, not medical advice.\n\n" +
+  "🩺 Stay safe! If symptoms worsen or persist beyond 2–3 days, please see a doctor.";
+
+const findSymptomProfile = (text) => {
+  const lowerText = text.toLowerCase();
+  return symptomProfiles.find((profile) =>
+    profile.keywords.some((keyword) => lowerText.includes(keyword))
+  );
+};
+
+const parseDurationDays = (text, inferStandalone = false) => {
+  const lowerText = text.toLowerCase();
+  const numberMatch = lowerText.match(/(\d+(?:\.\d+)?)\s*(hour|hours|hr|hrs|day|days|week|weeks)/);
+  if (numberMatch) {
+    const value = Number(numberMatch[1]);
+    const unit = numberMatch[2];
+    if (unit.startsWith('hour') || unit === 'hr' || unit === 'hrs') return value / 24;
+    if (unit.startsWith('week')) return value * 7;
+    return value;
+  }
+  if (lowerText.includes('today') || lowerText.includes('morning') || lowerText.includes('few hours')) return 0.5;
+  if (lowerText.includes('yesterday')) return 1;
+  if (lowerText.includes('two days')) return 2;
+  if (lowerText.includes('three days')) return 3;
+  if (lowerText.includes('week')) return 7;
+  if (inferStandalone && /^\d+(?:\.\d+)?$/.test(lowerText.trim())) return Number(lowerText.trim());
+  return null;
+};
+
+const hasRedFlag = (text) => {
+  const lowerText = text.toLowerCase();
+  return redFlagTerms.some((term) => lowerText.includes(term));
+};
+
+const includesAny = (text, terms) => {
+  const lowerText = text.toLowerCase();
+  return terms.some((term) => lowerText.includes(term));
+};
+
+const parseSeverity = (text, inferStandalone = false) => {
+  const lowerText = text.toLowerCase();
+  if (lowerText.includes('severe') || lowerText.includes('very bad') || lowerText.includes('unbearable') || lowerText.includes('10/10')) return 'severe';
+  if (lowerText.includes('moderate') || lowerText.includes('medium') || lowerText.includes('worse') || lowerText.includes('5/10')) return 'moderate';
+  if (lowerText.includes('mild') || lowerText.includes('little') || lowerText.includes('slight') || lowerText.includes('minor')) return 'mild';
+  if (inferStandalone) {
+    const numeric = Number(lowerText.trim());
+    if (Number.isFinite(numeric)) {
+      if (numeric >= 8) return 'severe';
+      if (numeric >= 4) return 'moderate';
+      if (numeric >= 1) return 'mild';
+    }
+  }
+  return null;
+};
+
+const parseAge = (text, inferStandalone = false) => {
+  const lowerText = text.toLowerCase();
+  const ageMatch = lowerText.match(/(?:age|aged|i am|i'm|patient is)\s*(\d{1,3})/);
+  if (ageMatch) return Number(ageMatch[1]);
+  if (lowerText.includes('child') || lowerText.includes('kid')) return 10;
+  if (lowerText.includes('baby') || lowerText.includes('infant')) return 1;
+  if (lowerText.includes('adult')) return 30;
+  if (lowerText.includes('elderly') || lowerText.includes('senior')) return 70;
+  if (inferStandalone && /^\d{1,3}$/.test(lowerText.trim())) return Number(lowerText.trim());
+  return null;
+};
+
+const parseAllergies = (text, inferStandalone = false) => {
+  const lowerText = text.toLowerCase();
+  if (
+    lowerText.includes('no allergy') ||
+    lowerText.includes('no known allergies') ||
+    lowerText.includes('not allergic') ||
+    (inferStandalone && ['no', 'none', 'nil', 'nothing'].includes(lowerText.trim()))
+  ) return 'none';
+  const allergyMatch = lowerText.match(/allerg(?:y|ic|ies)\s*(?:to)?\s*([a-z0-9, -]+)/);
+  if (allergyMatch) return allergyMatch[1].trim();
+  if (inferStandalone && lowerText.trim().length > 1) return lowerText.trim();
+  return null;
+};
+
+const getNextMissingTriageField = ({ durationDays, severity, age, allergies }) => {
+  if (durationDays === null) return 'duration';
+  if (!severity) return 'severity';
+  if (age === null) return 'age';
+  if (!allergies) return 'allergies';
+  return null;
+};
+
+const classifyTriage = ({ profile, durationDays, severity, age, redFlag }) => {
+  if (redFlag || severity === 'severe' || age < 2 || age >= 65) return 'SEVERE';
+  if (profile.alwaysDoctor || severity === 'moderate' || durationDays > profile.mildMaxDays) return 'MODERATE';
+  return 'MILD';
+};
+
+const withMedicalFooter = (text) => `${text}\n\n${medicalFooter}`;
+
+const getDoctorPrompt = (reason) =>
+  withMedicalFooter(
+    `${reason}\n\nAssessment: MODERATE or SEVERE.\n\nI will not suggest medicines for this. Please consult a doctor or visit a clinic because this may indicate a condition that needs proper examination, testing, or prescription treatment. If symptoms feel emergency-level, call local emergency services or go to the nearest emergency room.`
+  );
+
+const getClarifyingPrompt = (profile, field) => {
+  const prompts = {
+    duration: `This may be related to ${profile.label}. How long has this been happening? You can reply like "6 hours", "2 days", or "1 week".`,
+    severity: `Got the duration. How would you rate the severity: mild, moderate, or severe? Mention red flags too, like chest pain, breathing trouble, blood, fainting, dehydration, high fever, eye pain, pus, or rapidly worsening symptoms.`,
+    age: 'Thanks. What is the patient age? A number is enough, for example "24".',
+    allergies: 'Any known allergies to medicines or foods? Reply with the allergy name, or "none".',
+  };
+
+  return withMedicalFooter(prompts[field] || prompts.duration);
+};
+
+const FloatingChatbot = ({ activeWallet, userType = 'patient', onConnectDoctor }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messageIdCounter, setMessageIdCounter] = useState(2); // Start from 2 since we have initial message
+  const [triage, setTriage] = useState({
+    stage: 'symptom',
+    symptom: null,
+    summary: '',
+    durationDays: null,
+    severity: null,
+    age: null,
+    allergies: null,
+    pendingField: null,
+  });
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: "Hello! I'm Medi AI, your intelligent health assistant. I can help you with appointments, medical records, health questions, and navigating MediChain. How can I assist you today?",
+      text: "Hello! I'm Medi AI. Describe a symptom like fever, cough, headache, nausea, rash, acidity, cramps, sleep trouble, or minor cuts. I may ask duration, severity, age, and allergies before giving basic guidance.",
       sender: 'bot',
       timestamp: new Date()
     }
@@ -44,12 +393,158 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
     }
   }, [isOpen]);
 
+  const resetTriage = () => {
+    setTriage({
+      stage: 'symptom',
+      symptom: null,
+      summary: '',
+      durationDays: null,
+      severity: null,
+      age: null,
+      allergies: null,
+      pendingField: null,
+    });
+    setMessages([
+      {
+        id: Date.now(),
+        text: "Let's start again. What problem are you facing?",
+        sender: 'bot',
+        timestamp: new Date()
+      }
+    ]);
+    setMessageIdCounter(Date.now() + 1);
+  };
+
+  const buildTriageResponse = (userMessage) => {
+    if (includesAny(userMessage, prescriptionTerms)) {
+      setTriage({ ...triage, stage: 'done' });
+      return withMedicalFooter(
+        "I cannot advise on prescription drugs, antibiotic choice, controlled medicines, or prescription dosing. Please consult a licensed doctor or pharmacist, because the right medicine depends on diagnosis, age, pregnancy status, allergies, other medicines, and medical history."
+      );
+    }
+
+    if (includesAny(userMessage, seriousConditionTerms)) {
+      setTriage({ ...triage, stage: 'done' });
+      return withMedicalFooter(
+        "I cannot guide serious or potentially emergency conditions through chat. This could be related to something that needs urgent clinical assessment. Please consult a doctor, visit a clinic, or use emergency services if symptoms are severe."
+      );
+    }
+
+    const incomingProfile = findSymptomProfile(userMessage);
+    const isNewCheck = triage.stage === 'done' && incomingProfile;
+    const activeTriage = isNewCheck
+      ? {
+        stage: 'symptom',
+        symptom: incomingProfile,
+        summary: '',
+        durationDays: null,
+        severity: null,
+        age: null,
+        allergies: null,
+        pendingField: null,
+      }
+      : triage;
+    const profile = activeTriage.symptom || incomingProfile;
+    const durationDays = parseDurationDays(userMessage, activeTriage.pendingField === 'duration') ?? activeTriage.durationDays;
+    const severity = parseSeverity(userMessage, activeTriage.pendingField === 'severity') || activeTriage.severity;
+    const age = parseAge(userMessage, activeTriage.pendingField === 'age') ?? activeTriage.age;
+    const allergies = parseAllergies(userMessage, activeTriage.pendingField === 'allergies') || activeTriage.allergies;
+    const redFlag = hasRedFlag(`${activeTriage.summary} ${userMessage}`);
+
+    if (!profile) {
+      setTriage({
+        stage: 'symptom',
+        symptom: null,
+        summary: '',
+        durationDays: null,
+        severity: null,
+        age: null,
+        allergies: null,
+        pendingField: null,
+      });
+      return (
+        "I can give basic guidance for fever, cold and flu, headache, cough, nausea, diarrhea, acidity, minor cuts and burns, rashes, muscle and joint pain, eye irritation, earache, toothache, fatigue, mild anxiety, insomnia, menstrual cramps, UTI symptoms, acne, and fungal infections.\n\n" +
+        withMedicalFooter("Please describe one main symptom first. If you have chest pain, breathing trouble, fainting, heavy bleeding, confusion, or severe pain, consult a doctor urgently.")
+      );
+    }
+
+    const nextMissingField = getNextMissingTriageField({ durationDays, severity, age, allergies });
+    if (nextMissingField) {
+      setTriage({
+        stage: 'clarify',
+        symptom: profile,
+        summary: `${activeTriage.summary} ${userMessage}`.trim(),
+        durationDays,
+        severity,
+        age,
+        allergies,
+        pendingField: nextMissingField,
+      });
+      return getClarifyingPrompt(profile, nextMissingField);
+    }
+
+    const assessment = classifyTriage({ profile, durationDays, severity, age, redFlag });
+
+    setTriage({
+      stage: 'done',
+      symptom: profile,
+      summary: `${activeTriage.summary} ${userMessage}`.trim(),
+      durationDays,
+      severity,
+      age,
+      allergies,
+      pendingField: null,
+    });
+
+    if (assessment !== 'MILD') {
+      if (profile.alwaysDoctor) {
+        return getDoctorPrompt(profile.doctorReason);
+      }
+      if (redFlag) {
+        return getDoctorPrompt("You mentioned a red-flag symptom.");
+      }
+      if (severity === 'moderate' || severity === 'severe') {
+        return getDoctorPrompt(`Your symptom severity is ${severity}, so this could be more than a mild self-care issue.`);
+      }
+      if (age < 2 || age >= 65) {
+        return getDoctorPrompt("The patient's age can increase risk, so professional review is safer.");
+      }
+      return getDoctorPrompt(
+        `Your ${profile.label} has lasted longer than the usual mild window (${profile.mildMaxDays} day${profile.mildMaxDays === 1 ? '' : 's'}).`
+      );
+    }
+
+    const allergyNote = allergies === 'none'
+      ? 'You reported no known allergies.'
+      : `You mentioned allergies: ${allergies}. Avoid any medicine or product you may be allergic to.`;
+
+    return withMedicalFooter(
+      `Assessment: MILD.\n\n` +
+      `This may indicate a mild ${profile.label} based on short duration, mild severity, and no red flags shared.\n\n` +
+      `Common over-the-counter option by generic name: ${profile.otc}.\n\n` +
+      `Home remedies: ${profile.homeCare}\n\n` +
+      `Basic precautions: Follow label directions, do not combine duplicate ingredients, avoid medicines unsafe for your health conditions, and stop if side effects occur. ${allergyNote}`
+    );
+  };
+
   const generateIntelligentResponse = (userMessage, conversationHistory) => {
     if (!userMessage || typeof userMessage !== 'string') {
       return "I didn't receive a valid message. Please try again.";
     }
     const lowerMessage = userMessage.toLowerCase();
     const lastMessage = conversationHistory[conversationHistory.length - 1];
+    if (includesAny(userMessage, prescriptionTerms) || includesAny(userMessage, seriousConditionTerms)) {
+      return buildTriageResponse(userMessage);
+    }
+    if (
+      triage.stage !== 'done' ||
+      findSymptomProfile(userMessage) ||
+      lowerMessage.includes('mild') ||
+      lowerMessage.includes('severe') ||
+      parseDurationDays(userMessage) !== null
+    ) {
+      return buildTriageResponse(userMessage);
+    }
     // Simple symptom guidance (not medical advice)
     if (
       lowerMessage.includes('cold') ||
@@ -116,7 +611,7 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
 
     if (lowerMessage.includes('health') || lowerMessage.includes('medical') || lowerMessage.includes('symptom')) {
       if (lowerMessage.includes('symptom') || lowerMessage.includes('pain') || lowerMessage.includes('feel')) {
-        return "I understand you're experiencing health concerns. While I can provide general information, it's important to consult with a healthcare professional for proper diagnosis and treatment. I can help you book an appointment with a doctor who can properly assess your symptoms. What specific symptoms are you experiencing?";
+        return withMedicalFooter("I can help with basic symptom triage for common mild issues. Please describe one main symptom, its duration, severity, age, and known allergies. I never diagnose; I can only say what it may indicate and when to seek professional care.");
       }
       return "Your health is important! I can help you with appointment booking, accessing your medical records, or connecting with healthcare providers. What specific health-related assistance do you need?";
     }
@@ -155,7 +650,7 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
     }
 
     if (lowerMessage.includes('prescription') || lowerMessage.includes('medication') || lowerMessage.includes('medicine')) {
-      return "Your prescriptions and medications are stored in your medical records under the 'My Records' tab. You can view current and past prescriptions, refill requests, and medication history. For new prescriptions, you'll need to book an appointment with a doctor. Is there something specific about your medications?";
+      return withMedicalFooter("I cannot advise on prescription drugs, prescription refills, controlled medicines, antibiotics, or medication changes. Please consult a licensed doctor or pharmacist. You can still view existing prescriptions in your medical records under the 'My Records' tab.");
     }
 
     if (lowerMessage.includes('test') || lowerMessage.includes('lab') || lowerMessage.includes('result')) {
@@ -196,6 +691,15 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
 
     // Default intelligent response
     return "I understand you're asking about that. As your Medi AI assistant, I'm here to help with health-related queries, appointment booking, accessing your records, and navigating the platform. Could you please rephrase your question or let me know what specific assistance you need? I can help with appointments, records, fundraising, doctor searches, prescriptions, and more.";
+  };
+
+  const handleConnectDoctor = () => {
+    setIsOpen(false);
+    if (typeof onConnectDoctor === 'function') {
+      onConnectDoctor();
+      return;
+    }
+    window.location.href = '/dashboard/patient';
   };
 
   const handleSendMessage = async () => {
@@ -336,6 +840,12 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
                   {/* Messages */}
                   <ScrollArea className="p-4 h-full">
                     <div className="space-y-4 pr-4 pb-4">
+                      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                        <div className="flex gap-2">
+                          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                          <span>For emergencies or severe symptoms, do not wait for chatbot guidance.</span>
+                        </div>
+                      </div>
                       {messages.map((message) => (
                         <div
                           key={message.id}
@@ -367,6 +877,18 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient' }) => {
                           </div>
                         </div>
                       ))}
+                      {triage.stage === 'done' && (
+                        <div className="flex flex-wrap gap-2 pl-10">
+                          <Button size="sm" variant="secondary" onClick={handleConnectDoctor}>
+                            <Stethoscope className="mr-2 h-4 w-4" />
+                            Connect Doctor
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={resetTriage}>
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            New Check
+                          </Button>
+                        </div>
+                      )}
                       {isTyping && (
                         <div className="flex justify-start">
                           <Avatar className="h-8 w-8 mr-2 flex-shrink-0">

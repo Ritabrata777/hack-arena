@@ -15,6 +15,7 @@ import BookAppointment from '@/frontend/components/dashboard/BookAppointment';
 import RequestFundraiser from '@/frontend/components/dashboard/RequestFundraiser';
 import EmergencyVault from '@/frontend/components/dashboard/HealthVault';
 import ConsentManager from '@/frontend/components/dashboard/ConsentManager';
+import FloatingChatbot from '@/frontend/components/dashboard/FloatingChatbot';
 
 import { Button } from '@/frontend/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/frontend/components/ui/card';
@@ -336,6 +337,11 @@ const PatientDashboardPage = () => {
         </nav>
       </footer>
 
+      <FloatingChatbot
+        activeWallet={activeWallet}
+        userType="patient"
+        onConnectDoctor={() => setActiveTab('book-appointment')}
+      />
 
     </div>
   );
