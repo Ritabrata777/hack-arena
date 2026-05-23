@@ -1,7 +1,7 @@
 // This approach is taken from https://github.com/vercel/next.js/tree/canary/examples/with-mongodb
 import { MongoClient } from 'mongodb'
 import { config as dotenvConfig } from 'dotenv'
-import { getServers, setServers } from 'node:dns'
+import * as dns from 'node:dns'
 import dnsPromises from 'node:dns/promises'
 
 // Load env from standard files; if not set, also try config.env
@@ -37,7 +37,7 @@ const configuredDnsServers = (process.env.MONGODB_DNS_SERVERS || '')
 
 if (configuredDnsServers.length > 0) {
   try {
-    setServers(configuredDnsServers)
+    dns.setServers(configuredDnsServers)
     dnsPromises.setServers(configuredDnsServers)
   } catch (err) {
     throw new Error(`Invalid MONGODB_DNS_SERVERS value: ${err.message}`)
@@ -107,6 +107,11 @@ const envDirect = (process.env.MONGODB_DIRECT_CONNECTION || '').toLowerCase()
 // Default to direct connection for non-SRV URIs in dev unless explicitly disabled
 const directConnection = envDirect === 'true' || (!isSrv && isDevEnv && envDirect !== 'false')
 
+const configuredSelectionTimeout = Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS)
+const serverSelectionTimeoutMS = Number.isFinite(configuredSelectionTimeout) && configuredSelectionTimeout > 0
+  ? configuredSelectionTimeout
+  : 30000
+
 const options = {
   serverApi: {
     version: '1',
@@ -122,8 +127,7 @@ const options = {
   directConnection: directConnection || undefined,
   maxPoolSize: 3,
   appName: 'MediChain',
-  // Quicker feedback when selection fails
-  serverSelectionTimeoutMS: 10000,
+  serverSelectionTimeoutMS,
 }
 
 if (isDevEnv) {
@@ -133,8 +137,9 @@ if (isDevEnv) {
     allowInsecureTls,
     forceIpv4,
     directConnection,
-    dnsServers: getServers(),
+    dnsServers: dns.getServers(),
     minVersion: 'n/a',
+    serverSelectionTimeoutMS,
   })
 }
 
@@ -150,6 +155,15 @@ async function attemptConnect(primaryOptions, fallbackEnabled = true) {
   } catch (err) {
     const message = String(err && err.message ? err.message : err)
     const looksLikeTlsAlert80 = message.includes('tlsv1 alert internal error') || message.includes('SSL alert number 80')
+    const looksLikeServerSelection = err?.name === 'MongoServerSelectionError' || message.includes('Server selection timed out')
+
+    if (fallbackEnabled && isSrv && configuredDnsServers.length > 0 && looksLikeServerSelection && clientUri !== uri) {
+      console.warn('[MongoDB] Expanded SRV hosts could not select a server, retrying original SRV URI...')
+      const srvClient = new MongoClient(uri, primaryOptions)
+      await srvClient.connect()
+      return srvClient
+    }
+
     if (isDevEnv && isWindows && fallbackEnabled && looksLikeTlsAlert80) {
       console.warn('[MongoDB] TLS alert detected, retrying with stronger fallbacks...')
       const fallbackOptions = {
