@@ -169,7 +169,11 @@ export const logToBlockchain = async ({ summaryHash, doctorWallet, patientHash }
         // Ensure hashes are bytes32 (add 0x if missing, pad if needed?)
         // The contract expects bytes32. summaryHash and patientHash should be 0x-prefixed hex strings of length 66.
 
-        const tx = await contract.addConsultationLog(summaryHash, patientHash);
+        const tx = await contract.addConsultationLog(
+            summaryHash,
+            patientHash,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
 
         return {
