@@ -693,6 +693,33 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient', onConnectDoctor }
     return "I understand you're asking about that. As your Medi AI assistant, I'm here to help with health-related queries, appointment booking, accessing your records, and navigating the platform. Could you please rephrase your question or let me know what specific assistance you need? I can help with appointments, records, fundraising, doctor searches, prescriptions, and more.";
   };
 
+  const generateGeminiResponse = async (userMessage, conversationHistory) => {
+    const response = await fetch('/api/chatbot/medical-triage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: userMessage,
+        history: conversationHistory.map((message) => ({
+          sender: message.sender,
+          text: message.text,
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini chatbot request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (!data?.ok || !data?.reply) {
+      throw new Error(data?.error || 'Gemini chatbot returned an empty response');
+    }
+
+    return data.reply;
+  };
+
   const handleConnectDoctor = () => {
     setIsOpen(false);
     if (typeof onConnectDoctor === 'function') {
@@ -726,8 +753,13 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient', onConnectDoctor }
       // Get conversation history for context (last 10 messages)
       const conversationHistory = Array.isArray(messages) ? messages.slice(-10) : [];
 
-      // Generate intelligent response
-      const aiResponse = generateIntelligentResponse(messageText, conversationHistory);
+      let aiResponse;
+      try {
+        aiResponse = await generateGeminiResponse(messageText, conversationHistory);
+      } catch (geminiError) {
+        console.warn('Gemini chatbot unavailable, using local fallback:', geminiError);
+        aiResponse = generateIntelligentResponse(messageText, conversationHistory);
+      }
 
       const botResponse = {
         id: messageIdCounter + 1,
@@ -823,7 +855,7 @@ const FloatingChatbot = ({ activeWallet, userType = 'patient', onConnectDoctor }
                         </div>
                         <div>
                           <h3 className="font-semibold">Medi AI</h3>
-                          <p className="text-xs text-primary-foreground/80">Always here to help</p>
+                          <p className="text-xs text-primary-foreground/80">Gemini-powered guidance</p>
                         </div>
                       </div>
                       <Button

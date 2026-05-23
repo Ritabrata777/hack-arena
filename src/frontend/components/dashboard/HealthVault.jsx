@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import QRCode from 'qrcode';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/frontend/components/ui/card';
 import { Button } from '@/frontend/components/ui/button';
 import { Input } from '@/frontend/components/ui/input';
@@ -11,7 +13,7 @@ import { Textarea } from '@/frontend/components/ui/textarea';
 import { useToast } from "@/frontend/hooks/use-toast";
 import { generateEmergencyCode, getActiveEmergencyCode, revokeEmergencyCode, getPatientProfile, updatePatientProfile } from '@/backend/services/mongodb';
 import { encryptData, decryptData } from '@/backend/lib/crypto';
-import { Loader2, UploadCloud, FileText, Trash2, KeyRound, Copy, RefreshCw, ShieldOff, Download, ShieldPlus, Eye, Search, Shield, Upload, QrCode, ExternalLink, Link as LinkIcon } from 'lucide-react';
+import { Loader2, UploadCloud, FileText, Trash2, KeyRound, Copy, RefreshCw, ShieldOff, Download, ShieldPlus, Eye, Search, Shield, Upload, QrCode, ExternalLink, Link as LinkIcon, ClipboardList, AlertTriangle, Activity, Sparkles } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/frontend/components/ui/select';
 import { Badge } from '@/frontend/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/frontend/components/ui/tooltip';
@@ -78,6 +80,345 @@ const wrapCanvasText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 2) => 
     return y + visibleLines.length * lineHeight;
 };
 
+const extractDataUriText = (dataUri) => {
+    if (!dataUri || typeof dataUri !== 'string' || !dataUri.startsWith('data:')) return '';
+    const [meta = '', payload = ''] = dataUri.split(',');
+    const mime = meta.slice(5).split(';')[0].toLowerCase();
+    const isTextLike =
+        mime.startsWith('text/') ||
+        ['application/json', 'application/xml', 'application/csv'].includes(mime);
+
+    if (!isTextLike || !payload) return '';
+
+    try {
+        const decoded = meta.includes(';base64')
+            ? atob(payload)
+            : decodeURIComponent(payload);
+        return decoded.slice(0, 12000);
+    } catch (_) {
+        return '';
+    }
+};
+
+const dataUriToUint8Array = (dataUri) => {
+    const payload = dataUri.split(',')[1] || '';
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+};
+
+const getMimeFromDataUri = (dataUri) => {
+    if (!dataUri || typeof dataUri !== 'string' || !dataUri.startsWith('data:')) return '';
+    return (dataUri.split(',')[0] || '').slice(5).split(';')[0].toLowerCase();
+};
+
+const extractPdfText = async (dataUri) => {
+    const pdfjsLib = await import('pdfjs-dist');
+    const task = pdfjsLib.getDocument({
+        data: dataUriToUint8Array(dataUri),
+        disableWorker: true,
+    });
+    const pdf = await task.promise;
+    const pageLimit = Math.min(pdf.numPages, 8);
+    const pageTexts = [];
+
+    for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const textContent = await page.getTextContent();
+        const text = textContent.items
+            .map((item) => item.str || '')
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (text) pageTexts.push(text);
+    }
+
+    return pageTexts.join('\n').slice(0, 20000);
+};
+
+const extractImageText = async (dataUri) => {
+    const { createWorker } = await import('tesseract.js');
+    const worker = await createWorker('eng');
+    try {
+        const result = await worker.recognize(dataUri);
+        return (result?.data?.text || '').replace(/\s+/g, ' ').trim().slice(0, 12000);
+    } finally {
+        await worker.terminate();
+    }
+};
+
+const extractDocumentText = async (dataUri) => {
+    const directText = extractDataUriText(dataUri);
+    if (directText) {
+        return { text: directText, method: 'text file' };
+    }
+
+    const mime = getMimeFromDataUri(dataUri);
+    if (mime === 'application/pdf') {
+        const text = await extractPdfText(dataUri);
+        return { text, method: text ? 'pdf text extraction' : 'pdf metadata only' };
+    }
+
+    if (mime.startsWith('image/')) {
+        const text = await extractImageText(dataUri);
+        return { text, method: text ? 'image OCR' : 'image metadata only' };
+    }
+
+    return { text: '', method: 'metadata only' };
+};
+
+const riskRules = [
+    {
+        label: 'Blood sugar and metabolic risk',
+        terms: ['diabetes', 'metformin', 'insulin', 'glucose', 'hba1c', 'sugar'],
+        possibleRisks: ['hypoglycemia or hyperglycemia episodes', 'kidney, eye, foot, and cardiovascular complications if uncontrolled'],
+        nextStep: 'Keep recent HbA1c/glucose reports in the vault and review sugar control with a doctor.',
+    },
+    {
+        label: 'Cardiovascular risk',
+        terms: ['hypertension', 'high bp', 'blood pressure', 'amlodipine', 'telmisartan', 'losartan', 'cholesterol', 'statin', 'cardiac', 'heart'],
+        possibleRisks: ['heart disease or stroke risk if blood pressure/lipids are uncontrolled'],
+        nextStep: 'Track BP readings and keep lipid profile/cardiac reports updated.',
+    },
+    {
+        label: 'Respiratory flare risk',
+        terms: ['asthma', 'copd', 'inhaler', 'wheezing', 'breathless', 'shortness of breath', 'nebulizer'],
+        possibleRisks: ['asthma/COPD exacerbation or emergency breathing episodes'],
+        nextStep: 'Keep inhaler names, triggers, and latest pulmonary notes easy to access.',
+    },
+    {
+        label: 'Medication allergy or reaction risk',
+        terms: ['allergy', 'allergic', 'penicillin', 'sulfa', 'latex', 'anaphylaxis', 'rash after medicine'],
+        possibleRisks: ['drug reaction or anaphylaxis risk during emergency treatment'],
+        nextStep: 'Make allergy list emergency-visible and confirm exact allergy names with a clinician.',
+    },
+    {
+        label: 'Bleeding risk',
+        terms: ['warfarin', 'heparin', 'apixaban', 'rivaroxaban', 'clopidogrel', 'aspirin', 'blood thinner', 'anticoagulant'],
+        possibleRisks: ['higher bleeding risk after injury, surgery, dental procedures, or medication interactions'],
+        nextStep: 'Keep blood thinner dose and indication clearly listed for emergency staff.',
+    },
+    {
+        label: 'Kidney-related medication risk',
+        terms: ['kidney', 'renal', 'creatinine', 'ckd', 'dialysis', 'urea'],
+        possibleRisks: ['medicine dose adjustment needs and fluid/electrolyte complications'],
+        nextStep: 'Keep recent kidney function reports and diagnosis notes in the vault.',
+    },
+    {
+        label: 'Liver-related medication risk',
+        terms: ['liver', 'sgpt', 'sgot', 'bilirubin', 'hepatitis', 'cirrhosis'],
+        possibleRisks: ['medicine safety concerns and bleeding/infection complications depending on severity'],
+        nextStep: 'Review liver reports with a doctor before adding new medicines.',
+    },
+    {
+        label: 'Infection or immune risk',
+        terms: ['steroid', 'prednisone', 'immunosuppress', 'chemotherapy', 'hiv', 'tb', 'infection', 'fever'],
+        possibleRisks: ['higher infection risk or need for urgent assessment when fever occurs'],
+        nextStep: 'Keep immune-related diagnoses and current medicines updated.',
+    },
+    {
+        label: 'Anemia or deficiency risk',
+        terms: ['anemia', 'haemoglobin', 'hemoglobin', 'hb low', 'b12', 'iron deficiency', 'ferritin'],
+        possibleRisks: ['fatigue, dizziness, breathlessness, or worsening symptoms if untreated'],
+        nextStep: 'Keep CBC/iron/B12 reports in the vault and discuss recurrent low values with a clinician.',
+    },
+    {
+        label: 'Pregnancy-sensitive care risk',
+        terms: ['pregnant', 'pregnancy', 'trimester', 'antenatal'],
+        possibleRisks: ['medicine restrictions and emergency-care considerations during pregnancy'],
+        nextStep: 'Keep pregnancy records and current gestational age visible for emergency care.',
+    },
+];
+
+const normalizeRiskText = (value) => String(value || '').toLowerCase();
+
+const getReadableDocumentContext = (doc, extractedText = '') => [
+    doc.name,
+    doc.category,
+    doc.fileType,
+    doc.emergencyVisible ? 'emergency visible' : '',
+    extractedText,
+].filter(Boolean).join('\n');
+
+const buildVaultRiskReport = (summary, docsWithContext) => {
+    const summaryText = [
+        summary.bloodGroup,
+        summary.allergies,
+        summary.activeMedicines,
+        summary.conditions,
+        summary.notes,
+    ].filter(Boolean).join('\n');
+
+    const documentText = docsWithContext.map((doc) => doc.context).join('\n');
+    const combinedText = normalizeRiskText(`${summaryText}\n${documentText}`);
+
+    const matchedRisks = riskRules
+        .map((rule) => {
+            const matchedTerms = rule.terms.filter((term) => combinedText.includes(term));
+            if (matchedTerms.length === 0) return null;
+
+            const evidence = docsWithContext
+                .filter((doc) => matchedTerms.some((term) => normalizeRiskText(doc.context).includes(term)))
+                .map((doc) => ({
+                    document: doc.name,
+                    category: doc.category || 'Other',
+                    method: doc.extractionMethod || 'metadata only',
+                }))
+                .slice(0, 4);
+
+            const summaryEvidence = matchedTerms.filter((term) => normalizeRiskText(summaryText).includes(term));
+
+            return { ...rule, matchedTerms, evidence, summaryEvidence };
+        })
+        .filter(Boolean);
+
+    const categoryCounts = docsWithContext.reduce((acc, doc) => {
+        const key = doc.category || 'Other';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+    }, {});
+
+    const missingEmergencyItems = [
+        !summary.bloodGroup && 'blood group',
+        !summary.allergies && 'allergies',
+        !summary.activeMedicines && 'active medicines',
+        !summary.conditions && 'known conditions',
+        !summary.emergencyContact && 'emergency contact',
+    ].filter(Boolean);
+
+    const hasEmergencyDoc = docsWithContext.some((doc) => doc.emergencyVisible);
+    const hasLabReport = docsWithContext.some((doc) => (doc.category || '').toLowerCase() === 'lab report');
+    const hasPrescription = docsWithContext.some((doc) => (doc.category || '').toLowerCase() === 'prescription');
+
+    const preparednessGaps = [
+        ...missingEmergencyItems.map((item) => `Missing ${item} in emergency summary.`),
+        !hasEmergencyDoc && 'No uploaded document is marked visible for emergency access.',
+        !hasLabReport && 'No lab report document found; disease-risk signals from lab values may be incomplete.',
+        !hasPrescription && 'No prescription document found; medication-risk review may be incomplete.',
+    ].filter(Boolean);
+
+    return {
+        generatedAt: new Date().toISOString(),
+        summary,
+        documentCount: docsWithContext.length,
+        textReadableCount: docsWithContext.filter((doc) => doc.readText).length,
+        nonTextCount: docsWithContext.filter((doc) => !doc.readText).length,
+        ocrCount: docsWithContext.filter((doc) => doc.extractionMethod === 'image OCR').length,
+        pdfTextCount: docsWithContext.filter((doc) => doc.extractionMethod === 'pdf text extraction').length,
+        categoryCounts,
+        matchedRisks,
+        preparednessGaps,
+        sourceDocuments: docsWithContext.map((doc) => ({
+            name: doc.name,
+            category: doc.category || 'Other',
+            readText: doc.readText,
+            extractionMethod: doc.extractionMethod || 'metadata only',
+            emergencyVisible: doc.emergencyVisible,
+        })),
+    };
+};
+
+const formatReportDate = (date) => date ? new Date(date).toLocaleString() : 'N/A';
+
+const VaultRiskReport = ({ report, onDownload }) => {
+    if (!report) return null;
+
+    return (
+        <div className="rounded-lg border bg-background p-4 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <h3 className="flex items-center gap-2 font-semibold">
+                        <ClipboardList className="h-5 w-5 text-primary" />
+                        Emergency Vault Risk Report
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                        Generated from emergency summary and {report.documentCount} uploaded document(s). Text was readable from {report.textReadableCount} file(s), including {report.pdfTextCount} PDF extraction(s) and {report.ocrCount} OCR image(s).
+                    </p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={onDownload}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                </Button>
+            </div>
+
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
+                <div className="flex gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <p>This is not a diagnosis and does not calculate real disease probability. It highlights possible associated risks from available vault details for doctor review.</p>
+                </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Possible Risk Areas</p>
+                    <p className="text-2xl font-semibold">{report.matchedRisks.length}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Emergency Gaps</p>
+                    <p className="text-2xl font-semibold">{report.preparednessGaps.length}</p>
+                </div>
+                <div className="rounded-md border p-3">
+                    <p className="text-xs text-muted-foreground">Non-text Files</p>
+                    <p className="text-2xl font-semibold">{report.nonTextCount}</p>
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                <h4 className="flex items-center gap-2 text-sm font-semibold">
+                    <Activity className="h-4 w-4 text-primary" />
+                    Possible Associated Risks
+                </h4>
+                {report.matchedRisks.length > 0 ? report.matchedRisks.map((risk) => (
+                    <div key={risk.label} className="rounded-md border p-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="font-medium">{risk.label}</p>
+                            <p className="text-xs text-muted-foreground">Signals: {risk.matchedTerms.join(', ')}</p>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Could be related to: {risk.possibleRisks.join('; ')}.
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Reason: this was suggested because {risk.summaryEvidence.length > 0 ? `the emergency summary mentions ${risk.summaryEvidence.join(', ')}` : 'matching terms were found in uploaded vault documents'}.
+                        </p>
+                        <p className="mt-1 text-sm">{risk.nextStep}</p>
+                    </div>
+                )) : (
+                    <p className="text-sm text-muted-foreground">No predefined risk patterns were detected from the available emergency summary and readable document text.</p>
+                )}
+            </div>
+
+            {report.preparednessGaps.length > 0 && (
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">Emergency Readiness Gaps</h4>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                        {report.preparednessGaps.map((gap) => <li key={gap}>{gap}</li>)}
+                    </ul>
+                </div>
+            )}
+
+            <div className="grid gap-4 lg:grid-cols-2">
+                <div>
+                    <h4 className="text-sm font-semibold">Record Coverage</h4>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {Object.entries(report.categoryCounts).length > 0
+                            ? Object.entries(report.categoryCounts).map(([category, count]) => `${category} (${count})`).join(', ')
+                            : 'No documents found.'}
+                    </p>
+                </div>
+                <div>
+                    <h4 className="text-sm font-semibold">Extraction Limitation</h4>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Scanned PDFs may still need image OCR; blurry photos or handwritten text can reduce extraction accuracy.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     const [profile, setProfile] = useState(null);
     const [documents, setDocuments] = useState([]);
@@ -94,6 +435,8 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
     const [query, setQuery] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [corruptedDocuments, setCorruptedDocuments] = useState([]);
+    const [riskReport, setRiskReport] = useState(null);
+    const [isGeneratingRiskReport, setIsGeneratingRiskReport] = useState(false);
 
     const { toast } = useToast();
 
@@ -110,6 +453,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
             const docs = profileData?.healthDocuments || [];
             setDocuments(docs);
             setActiveCode(codeData);
+            setRiskReport(null);
 
             // Check for corrupted documents
             const corrupted = [];
@@ -216,6 +560,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
             const updatedDocuments = [...documents, newDocument];
             await updatePatientProfile(activeWallet, { ...profile, healthDocuments: updatedDocuments });
             setDocuments(updatedDocuments);
+            setRiskReport(null);
             toast({ title: 'File Uploaded', description: `${file.name} has been securely uploaded and validated.` });
         } catch (error) {
             console.error("File upload failed:", error);
@@ -231,6 +576,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         try {
             await updatePatientProfile(activeWallet, { ...profile, healthDocuments: updatedDocuments });
             setDocuments(updatedDocuments);
+            setRiskReport(null);
             toast({ title: 'Document Removed', description: 'The document has been removed from your vault.' });
         } catch (error) {
             console.error("Failed to remove document:", error);
@@ -261,6 +607,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
             const updatedDocuments = documents.filter(doc => doc.id !== docId);
             await updatePatientProfile(activeWallet, { ...profile, healthDocuments: updatedDocuments });
             setDocuments(updatedDocuments);
+            setRiskReport(null);
             toast({ title: 'Corrupted Document Removed', description: `${doc.name} has been removed due to corruption.` });
         } catch (error) {
             console.error("Failed to remove corrupted document:", error);
@@ -313,6 +660,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
 
             await updatePatientProfile(activeWallet, { ...profile, healthDocuments: updatedDocuments });
             setDocuments(updatedDocuments);
+            setRiskReport(null);
             toast({ title: 'Document Fixed', description: `${newFile.name} has been successfully re-uploaded and encrypted.` });
         } catch (error) {
             console.error("Failed to re-upload document:", error);
@@ -370,6 +718,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
             await updatePatientProfile(activeWallet, { ...profile, emergencySummary: summary });
             setProfile(prev => ({ ...(prev || {}), emergencySummary: summary }));
             setEmergencySummary(summary);
+            setRiskReport(null);
             toast({ title: 'Emergency Summary Saved', description: 'Critical emergency information was updated.' });
         } catch (error) {
             console.error('Failed to save emergency summary:', error);
@@ -400,6 +749,185 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
         }
     };
 
+    const handleGenerateRiskReport = async () => {
+        setIsGeneratingRiskReport(true);
+        try {
+            const docsWithContext = [];
+
+            for (const doc of documents) {
+                let decryptedUri = '';
+                let extracted = { text: '', method: 'metadata only' };
+
+                try {
+                    decryptedUri = decryptData(doc.encryptedUri);
+                    extracted = await extractDocumentText(decryptedUri);
+                } catch (error) {
+                    console.warn('Document text extraction failed:', doc.name, error);
+                    decryptedUri = '';
+                    extracted = { text: '', method: 'metadata only' };
+                }
+
+                docsWithContext.push({
+                    id: doc.id,
+                    name: doc.name || 'Untitled document',
+                    category: doc.category || 'Other',
+                    fileType: doc.fileType || '',
+                    emergencyVisible: Boolean(doc.emergencyVisible),
+                    context: getReadableDocumentContext(doc, extracted.text),
+                    readText: Boolean(extracted.text.trim()),
+                    extractionMethod: extracted.method,
+                });
+            }
+
+            const report = buildVaultRiskReport(normalizeEmergencySummary(emergencySummary), docsWithContext);
+            setRiskReport(report);
+            toast({
+                title: 'Risk Report Generated',
+                description: 'The report was created from your emergency summary and uploaded vault documents.',
+            });
+        } catch (error) {
+            console.error('Failed to generate vault risk report:', error);
+            toast({ variant: 'destructive', title: 'Report failed', description: 'Could not generate the vault risk report.' });
+        } finally {
+            setIsGeneratingRiskReport(false);
+        }
+    };
+
+    const handleDownloadRiskReport = () => {
+        if (!riskReport) return;
+
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+        const margin = 40;
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const maxWidth = pageWidth - margin * 2;
+        let y = 42;
+
+        const addPageIfNeeded = (needed = 60) => {
+            if (y + needed > pageHeight - margin) {
+                pdf.addPage();
+                y = margin;
+            }
+        };
+
+        const addHeading = (text) => {
+            addPageIfNeeded(40);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(13);
+            pdf.setTextColor(15, 23, 42);
+            pdf.text(text, margin, y);
+            y += 20;
+        };
+
+        const addParagraph = (text, options = {}) => {
+            const fontSize = options.fontSize || 10;
+            pdf.setFont('helvetica', options.bold ? 'bold' : 'normal');
+            pdf.setFontSize(fontSize);
+            pdf.setTextColor(options.color?.[0] ?? 51, options.color?.[1] ?? 65, options.color?.[2] ?? 85);
+            const lines = pdf.splitTextToSize(String(text || ''), maxWidth);
+            addPageIfNeeded(lines.length * (fontSize + 4) + 8);
+            pdf.text(lines, margin, y);
+            y += lines.length * (fontSize + 4) + 8;
+        };
+
+        pdf.setFillColor(15, 23, 42);
+        pdf.rect(0, 0, pageWidth, 92, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(20);
+        pdf.text('MediChain Emergency Vault Risk Report', margin, 38);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(10);
+        pdf.text(`Generated ${formatReportDate(riskReport.generatedAt)}`, margin, 60);
+        pdf.text('Professional risk-awareness brief based on emergency vault details', margin, 76);
+        y = 118;
+
+        addParagraph(
+            'This report is not a diagnosis and does not calculate real disease probability. It highlights possible associated risks from available emergency summary details, uploaded document text, PDF extraction, image OCR, and document metadata for doctor review.',
+            { fontSize: 10, bold: true, color: [120, 53, 15] }
+        );
+
+        addHeading('Patient Emergency Summary');
+        autoTable(pdf, {
+            startY: y,
+            theme: 'grid',
+            styles: { fontSize: 9, cellPadding: 6 },
+            headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+            head: [['Field', 'Details']],
+            body: [
+                ['Blood group', getEmergencyValue(riskReport.summary.bloodGroup)],
+                ['Allergies', getEmergencyValue(riskReport.summary.allergies)],
+                ['Active medicines', getEmergencyValue(riskReport.summary.activeMedicines)],
+                ['Known conditions', getEmergencyValue(riskReport.summary.conditions)],
+                ['Emergency notes', getEmergencyValue(riskReport.summary.notes)],
+            ],
+            margin: { left: margin, right: margin },
+        });
+        y = (pdf.lastAutoTable?.finalY || y) + 24;
+
+        addHeading('Assessment Overview');
+        autoTable(pdf, {
+            startY: y,
+            theme: 'striped',
+            styles: { fontSize: 9, cellPadding: 6 },
+            headStyles: { fillColor: [30, 64, 175], textColor: [255, 255, 255] },
+            head: [['Metric', 'Value']],
+            body: [
+                ['Documents reviewed', String(riskReport.documentCount)],
+                ['Readable text sources', String(riskReport.textReadableCount)],
+                ['PDF text extractions', String(riskReport.pdfTextCount)],
+                ['Image OCR extractions', String(riskReport.ocrCount)],
+                ['Possible risk areas flagged', String(riskReport.matchedRisks.length)],
+                ['Emergency readiness gaps', String(riskReport.preparednessGaps.length)],
+            ],
+            margin: { left: margin, right: margin },
+        });
+        y = (pdf.lastAutoTable?.finalY || y) + 24;
+
+        addHeading('Clinical Risk Considerations');
+        if (riskReport.matchedRisks.length === 0) {
+            addParagraph('No predefined risk pattern was detected from the available vault details. This may mean the vault has limited structured information, not that risk is absent.');
+        } else {
+            riskReport.matchedRisks.forEach((risk, index) => {
+                addPageIfNeeded(120);
+                addParagraph(`${index + 1}. ${risk.label}`, { bold: true, fontSize: 11, color: [15, 23, 42] });
+                addParagraph(`Evidence found: ${risk.matchedTerms.join(', ')}.`);
+                const evidenceText = [
+                    risk.summaryEvidence.length > 0 ? `Emergency summary mentions: ${risk.summaryEvidence.join(', ')}.` : '',
+                    risk.evidence.length > 0 ? `Relevant vault records include: ${risk.evidence.map((item) => `${item.document} (${item.category}, ${item.method})`).join('; ')}.` : '',
+                ].filter(Boolean).join(' ');
+                addParagraph(`Reason for flagging: ${evidenceText || 'Matching terms were found in available vault metadata.'}`);
+                addParagraph(`Why this matters: This could be related to ${risk.possibleRisks.join('; ')}.`);
+                addParagraph(`Suggested action: ${risk.nextStep}`);
+            });
+        }
+
+        addHeading('Emergency Readiness Recommendations');
+        if (riskReport.preparednessGaps.length === 0) {
+            addParagraph('No major emergency-readiness gaps were detected from the available details.');
+        } else {
+            riskReport.preparednessGaps.forEach((gap) => addParagraph(`- ${gap}`));
+        }
+
+        addHeading('Record Coverage');
+        const categoryText = Object.entries(riskReport.categoryCounts).length > 0
+            ? Object.entries(riskReport.categoryCounts).map(([category, count]) => `${category}: ${count}`).join(', ')
+            : 'No documents were available.';
+        addParagraph(`Document coverage reviewed: ${categoryText}.`);
+        addParagraph('Extraction note: PDF text and image OCR were used where possible. Blurry scans, handwriting, locked PDFs, or image-only PDFs may reduce extraction accuracy.');
+
+        const pageCount = pdf.internal.getNumberOfPages();
+        for (let page = 1; page <= pageCount; page += 1) {
+            pdf.setPage(page);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(8);
+            pdf.setTextColor(100, 116, 139);
+            pdf.text(`MediChain Risk Report • Page ${page} of ${pageCount}`, margin, pageHeight - 20);
+        }
+
+        pdf.save(`medichain-vault-risk-report-${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
     const handleRestoreFromFile = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -410,6 +938,7 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
             const merged = [...documents, ...json.documents];
             await updatePatientProfile(activeWallet, { ...profile, healthDocuments: merged });
             setDocuments(merged);
+            setRiskReport(null);
             toast({ title: 'Vault Restored', description: 'Imported documents from backup' });
         } catch (error) {
             toast({ variant: 'destructive', title: 'Restore failed', description: error.message || 'Invalid backup file' });
@@ -694,6 +1223,25 @@ const EmergencyVault = ({ activeWallet, setActiveTab }) => {
                                 {isSavingSummary ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
                                 Save Emergency Summary
                             </Button>
+                        </div>
+
+                        <div className="rounded-lg border p-4 space-y-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <h3 className="flex items-center gap-2 font-semibold">
+                                        <Sparkles className="h-5 w-5 text-primary" />
+                                        Risk Report From Emergency Vault
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        Reads emergency details, PDF text, OCR text from JPG/PNG/WebP images, document categories, and file names to flag possible associated disease risks for doctor review.
+                                    </p>
+                                </div>
+                                <Button type="button" onClick={handleGenerateRiskReport} disabled={isGeneratingRiskReport}>
+                                    {isGeneratingRiskReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}
+                                    {isGeneratingRiskReport ? 'Reading Documents...' : 'Generate Report'}
+                                </Button>
+                            </div>
+                            <VaultRiskReport report={riskReport} onDownload={handleDownloadRiskReport} />
                         </div>
 
                         <UploadSection onUpload={handleFileUpload} isUploading={isUploading} />

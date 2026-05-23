@@ -42,7 +42,11 @@ export const GOOGLE_AI_CONFIG: AIServiceConfig = {
 
 // Environment-based configuration
 export function getAIConfig(): AIServiceConfig {
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   const useFallback = process.env.USE_AI_FALLBACK === 'true';
   
   if (useFallback || !apiKey) {
@@ -56,7 +60,11 @@ export function getAIConfig(): AIServiceConfig {
 // Check if AI service is available
 export function isAIServiceAvailable(): boolean {
   const config = getAIConfig();
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   return config.provider === 'google' && !!apiKey;
 }
 
