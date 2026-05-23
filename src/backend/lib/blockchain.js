@@ -202,7 +202,13 @@ export const createCampaignOnChain = async (campaignData) => {
         const { beneficiary, goalAmount, title, description } = campaignData;
         const goalWei = ethers.parseEther(goalAmount.toString());
 
-        const tx = await contract.createCampaign(beneficiary, goalWei, title, description);
+        const tx = await contract.createCampaign(
+            beneficiary,
+            goalWei,
+            title,
+            description,
+            await getTransactionFeeOverrides(provider)
+        );
         const receipt = await tx.wait();
 
         // Try to find the event to get the campaign ID
@@ -231,7 +237,10 @@ export const donateToCampaignOnChain = async (campaignId, amount) => {
         const numericId = BigInt(campaignId);
         const amountWei = ethers.parseEther(amount.toString());
 
-        const tx = await contract.donate(numericId, { value: amountWei });
+        const tx = await contract.donate(numericId, {
+            value: amountWei,
+            ...(await getTransactionFeeOverrides(provider))
+        });
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
@@ -248,7 +257,8 @@ export const donateDirectToWallet = async (toAddress, amount) => {
 
         const tx = await signer.sendTransaction({
             to: toAddress,
-            value: ethers.parseEther(amount.toString())
+            value: ethers.parseEther(amount.toString()),
+            ...(await getTransactionFeeOverrides(provider))
         });
 
         await tx.wait();
