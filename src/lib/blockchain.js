@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import MediChain from '@/backend/contracts/MediChain.json';
 import { MEDI_CHAIN_CONTRACT_ADDRESS } from '@/backend/contracts/config';
+import { getTransactionFeeOverrides } from '@/lib/gas';
 
 // This is a placeholder for actual blockchain interaction.
 // In a real app, you would use a library like ethers.js or web3.js to connect to a wallet
@@ -48,16 +49,22 @@ export const logToBlockchain = async ({ summaryHash, doctorWallet, patientHash }
     });
   }
 
-  const { contract } = await getContract();
+  const contractConnection = await getContract();
 
-  if (!contract) {
+  if (!contractConnection?.contract) {
     throw new Error("Could not connect to the blockchain contract. Make sure your wallet is connected.");
   }
+
+  const { contract, signer } = contractConnection;
 
   try {
     // This example logs the summary hash and patient hash.
     // A real smart contract might include more details.
-    const transaction = await contract.addConsultationLog(summaryHash, patientHash);
+    const transaction = await contract.addConsultationLog(
+      summaryHash,
+      patientHash,
+      await getTransactionFeeOverrides(signer.provider)
+    );
 
     // Wait for the transaction to be mined
     const receipt = await transaction.wait();
