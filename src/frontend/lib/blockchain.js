@@ -3,6 +3,7 @@
 import { ethers } from 'ethers';
 import { MEDI_CHAIN_CONTRACT_ADDRESS, AMOY_RPC_URL } from '@/backend/contracts/config';
 import configABI from '@/backend/artifacts/src/backend/contracts/MediChain.sol/MediChain.json';
+import { getTransactionFeeOverrides } from '@/lib/gas';
 
 const AMOY_CHAIN_ID = 80002;
 const AMOY_CHAIN_ID_HEX = '0x13882'; // 80002 in hex
@@ -118,7 +119,11 @@ export const logToBlockchain = async ({ summaryHash, doctorWallet, patientHash }
         const signer = await provider.getSigner();
         const contract = await getContract(signer);
 
-        const tx = await contract.addConsultationLog(summaryHash, patientHash);
+        const tx = await contract.addConsultationLog(
+            summaryHash,
+            patientHash,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
 
         return {
@@ -142,7 +147,10 @@ export const verifyDoctorOnBlockchain = async (doctorAddress) => {
         const signer = await provider.getSigner();
         const contract = await getContract(signer);
 
-        const tx = await contract.verifyDoctor(doctorAddress);
+        const tx = await contract.verifyDoctor(
+            doctorAddress,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
 
         return { txHash: tx.hash };
@@ -189,7 +197,10 @@ export const banUserOnBlockchain = async (userWallet) => {
         const signer = await provider.getSigner();
         const contract = await getContract(signer);
 
-        const tx = await contract.banDoctor(userWallet);
+        const tx = await contract.banDoctor(
+            userWallet,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
@@ -207,7 +218,10 @@ export const unbanUserOnBlockchain = async (userWallet) => {
         const signer = await provider.getSigner();
         const contract = await getContract(signer);
 
-        const tx = await contract.unbanDoctor(userWallet);
+        const tx = await contract.unbanDoctor(
+            userWallet,
+            await getTransactionFeeOverrides(provider)
+        );
         await tx.wait();
         return { txHash: tx.hash };
     } catch (error) {
